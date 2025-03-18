@@ -371,13 +371,19 @@ def main(config):
     isoMapper.SetInputConnection(marchingCubes.GetOutputPort())
     isoActor = vtkActor()
     isoActor.SetMapper(isoMapper)
-    isoActor.GetProperty().SetInterpolationToFlat()
+    isoActor.GetProperty().SetInterpolationToPhong()
 
     # Add iso-surface actor to renderer
     renderer.AddActor(isoActor)
 
-    surface_renderer=SurfaceRenderer(config.path_to_test_data + os.sep + config.tiff_file,480,94,1693,config.pixel_size,3,0.95,renderer,surface_file=config.path_to_test_data + os.sep + config.surface_file)
-    renderer.AddActor(surface_renderer.surface_actor)
+
+    use_orthoslicer=True
+    if(use_orthoslicer):
+        surface_renderer=SurfaceRenderer(config.path_to_test_data + os.sep + config.tiff_file,480,94,1693,config.pixel_size,3,0.95,renderer,surface_file=config.path_to_test_data + os.sep + config.surface_file)
+        renderer.AddActor(surface_renderer.surface_actor)
+    else:
+        a=1 #TODO
+        #Faire pareil mais avec du volume rendering
 
     total_vertices, total_triangles = count_vertices_and_triangles(renderer)
     print(f"Total vertices: {total_vertices}")

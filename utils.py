@@ -525,7 +525,21 @@ class SurfaceRenderer:
         """
         surface_mapper = vtk.vtkPolyDataMapper()
         surface_mapper.SetInputData(self.surface)  # Surface extracted by MarchingCubes
-        surface_mapper.SetScalarVisibility(False)
+        surface_mapper.SetScalarVisibility(True)
+
+        # Set the range of the lookup table to control contrast
+        min_value = 0  # Minimum value of your data
+        max_value = 255  # Maximum value of your data
+        # Create a lookup table
+        lut = vtk.vtkLookupTable()
+        lut.SetHueRange(0, 0)  # Use grayscale
+        lut.SetSaturationRange(0, 0)  # No saturation
+        lut.SetValueRange(0, 1)  # Default range
+
+        lut.SetValueRange(min_value, max_value)
+
+    # Use the lookup table in the mapper
+        surface_mapper.SetLookupTable(lut)
         return surface_mapper
 
     def create_surface_actor(self):
