@@ -15,11 +15,11 @@ This code creates a 3D visualization of the plant by reading and processing thes
 The leaves from the same tiller will share a color palette, becoming darker the higher they start.
 The roots will have a blue color if they start high, and the red one if they start low.
 """
-from utils import get_curve,get_information,create_color_palettes,get_radius,SliceInteractionHandler
 import os
-import vtk
+from types import SimpleNamespace
 import numpy as np
-from vtkmodules.vtkCommonColor import vtkNamedColors
+import json
+import vtk
 from vtkmodules.vtkRenderingCore import (
     vtkActor,
     vtkPolyDataMapper,
@@ -31,8 +31,10 @@ from vtkmodules.vtkFiltersSources import vtkSphereSource
 from vtkmodules.vtkFiltersCore import vtkMarchingCubes
 from vtkmodules.vtkFiltersCore import vtkTubeFilter
 from vtkmodules.vtkFiltersSources import vtkLineSource
-from utils import SurfaceRenderer
-import json
+from vtkmodules.vtkCommonColor import vtkNamedColors
+
+from utils import get_curve,get_information,create_color_palettes,get_radius,SliceInteractionHandler,SurfaceRenderer
+
 
 
 def load_config(config_path="config.json"):
@@ -146,8 +148,7 @@ def setup_interaction(renderer, surface_renderer):
     return renderWindowInteractor
 
 
-def main(base_radius,leaf_small_radius,leaf_mid_radius,leaf_big_radius,curve_sample_root,curve_sample_leaf,pixel_size,
-         csv_directories_leaves,csv_directories_roots,information_path,radius_path,surface_file,tiff_file):
+def main(config):
     """
     Renders a 3D visualization of plant roots based on a series of CSV files
     containing curve and radius information, and generates an iso-surface
@@ -160,16 +161,16 @@ def main(base_radius,leaf_small_radius,leaf_mid_radius,leaf_big_radius,curve_sam
     all_roots_csv_files = []
 
     # Read CSV files for leaves and roots
-    for i, directory in enumerate(csv_directories_leaves):
+    for i, directory in enumerate(config.csv_directories_leaves):
         files = sorted(
-            [filename for filename in os.listdir(directory) if filename.endswith(".csv")],
+            [filename for filename in os.listdir(config.path_to_test_data + os.sep + directory) if filename.endswith(".csv")],
             key=lambda x: x.lower()
         )
         all_leaves_csv_files += [[filename, i] for filename in files]
 
-    for directory in csv_directories_roots:
+    for directory in config.csv_directories_roots:
         all_roots_csv_files += sorted(
-            [filename for filename in os.listdir(directory) if filename.endswith(".csv")],
+            [filename for filename in os.listdir(config.path_to_test_data + os.sep + directory) if filename.endswith(".csv")],
             key=lambda x: x.lower()
         )
 
@@ -177,9 +178,9 @@ def main(base_radius,leaf_small_radius,leaf_mid_radius,leaf_big_radius,curve_sam
     all_z_leaves = []
     curve_points_dict_leaves = {}
     for filename, i in all_leaves_csv_files:
-        directory = csv_directories_leaves[i]
-        csv_path = os.path.join(directory, filename)
-        curve_points = get_curve(csv_path,curve_sample_leaf)
+        directory = config.csv_directories_leaves[i]
+        csv_path = os.path.join(config.path_to_test_data + os.sep + directory, filename)
+        curve_points = get_curve(csv_path,config.curve_sample_leaf)
         curve_points_dict_leaves[filename] = [curve_points, i]
         all_z_leaves.append(curve_points[0][2])
     n_dir = i + 1
@@ -187,11 +188,11 @@ def main(base_radius,leaf_small_radius,leaf_mid_radius,leaf_big_radius,curve_sam
     all_z_roots = []
     curve_points_dict_roots = {}
     for filename in all_roots_csv_files:
-        for directory in csv_directories_roots:
-            csv_path = os.path.join(directory, filename)
+        for directory in config.csv_directories_roots:
+            csv_path = os.path.join(config.path_to_test_data + os.sep + directory, filename)
             if os.path.exists(csv_path):
                 break
-        curve_points = get_curve(csv_path,curve_sample_root)
+        curve_points = get_curve(csv_path,config.curve_sample_root)
         curve_points_dict_roots[filename] = curve_points
         all_z_roots.append(curve_points[0][2])
 
@@ -211,27 +212,27 @@ def main(base_radius,leaf_small_radius,leaf_mid_radius,leaf_big_radius,curve_sam
     renderWindow.AddRenderer(renderer)
 
     # Read information file
-    information = get_information(information_path)
+    information = get_information(config.path_to_test_data + os.sep + config.information_path)
     information = [[float(char) for char in sublist] for sublist in information]
 
     # Create objects at each point (leaves)
     all_points = []
     for i, (filename, dir_index) in enumerate(all_leaves_csv_files):
         levels = information[i]
-        levels = [level * pixel_size for level in levels]
+        levels = [level * config.pixel_size for level in levels]
         curve_data = curve_points_dict_leaves[filename]
         curve_points = curve_data[0]
         start_point = curve_points[0]
-        x_s, y_s, z_s = [coord * pixel_size for coord in start_point]
+        x_s, y_s, z_s = [coord * config.pixel_size for coord in start_point]
         curve_color = get_color_from_z_leaves(
             curve_points[0][2], z_min_leaves, z_max_leaves, dir_index, palettes
         )
         for j, point in enumerate(curve_points):
-            x, y, z = [coord * pixel_size for coord in point]
+            x, y, z = [coord * config.pixel_size for coord in point]
             if j == 0:
                 sphereSource = vtkSphereSource()
                 sphereSource.SetCenter(x, y, z)
-                radius = base_radius * pixel_size
+                radius = config.base_radius * config.pixel_size
                 sphereSource.SetRadius(radius)
                 sphereSource.Update()
 
@@ -247,9 +248,9 @@ def main(base_radius,leaf_small_radius,leaf_mid_radius,leaf_big_radius,curve_sam
                 renderer.AddActor(sphereActor)
             else:
                 if z < levels[0]:
-                    radius = leaf_small_radius * pixel_size
+                    radius = config.leaf_small_radius * config.pixel_size
                 else : 
-                    radius = leaf_mid_radius * pixel_size if z < levels[1] else leaf_big_radius * pixel_size
+                    radius = config.leaf_mid_radius * config.pixel_size if z < levels[1] else config.leaf_big_radius * config.pixel_size
                 
                 # Tube
                 lineSource = vtkLineSource()
@@ -279,18 +280,18 @@ def main(base_radius,leaf_small_radius,leaf_mid_radius,leaf_big_radius,curve_sam
 
     # Process roots
     curve_lengths = [len(curve_points) for curve_points in curve_points_dict_roots.values()]
-    radius_points = get_radius(radius_path, curve_lengths)
+    radius_points = get_radius(config.path_to_test_data + os.sep + config.radius_path, curve_lengths)
     for i, filename in enumerate(all_roots_csv_files):
         curve_points = curve_points_dict_roots[filename]
         radius_list = radius_points[i]
         curve_color = get_color_from_z_roots(curve_points[0][2], z_min_roots, z_max_roots)
-        x_s, y_s, z_s = [coord * pixel_size for coord in curve_points[0]]
+        x_s, y_s, z_s = [coord * config.pixel_size for coord in curve_points[0]]
         for j, point in enumerate(curve_points):
-            x, y, z = [coord * pixel_size for coord in point]
+            x, y, z = [coord * config.pixel_size for coord in point]
             if j == 0:
                 sphereSource = vtkSphereSource()
                 sphereSource.SetCenter(x, y, z)
-                radius = radius_list[j][1] * pixel_size
+                radius = radius_list[j][1] * config.pixel_size
                 sphereSource.SetRadius((radius+5)/2)
                 sphereSource.Update()
 
@@ -306,7 +307,7 @@ def main(base_radius,leaf_small_radius,leaf_mid_radius,leaf_big_radius,curve_sam
                 sphereActor.GetProperty().SetInterpolationToFlat()
                 renderer.AddActor(sphereActor)
             else : 
-                radius = radius_list[j][1] * pixel_size
+                radius = radius_list[j][1] * config.pixel_size
                 lineSource = vtkLineSource()
                 lineSource.SetPoint1(x_s, y_s, z_s)
                 lineSource.SetPoint2(x, y, z)
@@ -375,7 +376,7 @@ def main(base_radius,leaf_small_radius,leaf_mid_radius,leaf_big_radius,curve_sam
     # Add iso-surface actor to renderer
     renderer.AddActor(isoActor)
 
-    surface_renderer=SurfaceRenderer(tiff_file,480,94,1693,pixel_size,3,0.95,renderer,surface_file=surface_file)
+    surface_renderer=SurfaceRenderer(config.path_to_test_data + os.sep + config.tiff_file,480,94,1693,config.pixel_size,3,0.95,renderer,surface_file=config.path_to_test_data + os.sep + config.surface_file)
     renderer.AddActor(surface_renderer.surface_actor)
 
     total_vertices, total_triangles = count_vertices_and_triangles(renderer)
@@ -404,14 +405,21 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Render a 3D plant model from CSV files.")
-    parser.add_argument("config", type=str, help="Path to the JSON configuration file.")
+    parser.add_argument("config", type=str, nargs="?",default=None,help="Path to the JSON configuration file.")
     args = parser.parse_args()
 
     # Charger la configuration depuis le JSON
-    config = load_config(args.config)
+    if(args.config is None):
+        #Load from default file (i.e. config.json)
+        config_obj = load_config()
+    else :
+        config_obj = load_config(args.config)
+    config = SimpleNamespace(**config_obj)
 
     # Appeler la fonction main avec les paramètres du JSON
-    main(
+    main(config)
+        
+    if(False):
         base_radius=config["base_radius"],
         leaf_small_radius=config["leaf_small_radius"],
         leaf_mid_radius=config["leaf_mid_radius"],
@@ -425,4 +433,5 @@ if __name__ == "__main__":
         radius_path=config["radius_path"],
         surface_file=config["surface_file"],
         tiff_file=config["tiff_file"]
-    )
+    
+

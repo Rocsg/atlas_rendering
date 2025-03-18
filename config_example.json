@@ -12,8 +12,6 @@
     "_comment5": "Pixel size to get back to physical metrics",
     "pixel_size": 12,
     "_comment6": "Different directories,paths and files required",
-    "path_to_test_data" : "/home/rfernandez/Bureau/A_Test/thomas_test_data",
-    "path_to_dev_data" : "/home/rfernandez/Bureau/A_Test/atlas_dev_dataset",
     "csv_directories_leaves": [
       "csv/leaves/tale_0/csv",
       "csv/leaves/tale_2/csv",
@@ -29,7 +27,7 @@
     ],
     "information_path": "csv/leaves/information.csv",
     "radius_path": "csv/roots/radius.csv",
-    "surface_file": "mesh/simplified_tap_quad_95.vtk",
-    "tiff_file": "img/final_image.tiff"
+    "surface_file": "simplified_tap_quad_95.vtk",
+    "tiff_file": "final_image.tiff"
   }
   
