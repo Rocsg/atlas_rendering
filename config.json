@@ -1,0 +1,33 @@
+{   
+    "_comment": "Configuration file for the plant rendering program.",
+    "_comment2": "  Radius for the sphere at the base of leaves.",
+    "base_radius": 20,
+    "_comment3": "Radius for the different parts of leaves",
+    "leaf_small_radius": 3,
+    "leaf_mid_radius": 5,
+    "leaf_big_radius": 10,
+    "_comment4": "Resample interval for curves, different for root and leaves",
+    "curve_sample_root": 50,
+    "curve_sample_leaf": 150,
+    "_comment5": "Pixel size to get back to physical metrics",
+    "pixel_size": 12,
+    "_comment6": "Different directories,paths and files required",
+    "csv_directories_leaves": [
+      "csv/leaves/tale_0/csv",
+      "csv/leaves/tale_2/csv",
+      "csv/leaves/tale_2-1/csv",
+      "csv/leaves/tale_3/csv",
+      "csv/leaves/tale_4/csv"
+    ],
+    "csv_directories_roots": [
+      "csv/roots/a-a-m/csv",
+      "csv/roots/A-a-M/csv",
+      "csv/roots/n-a-z/csv",
+      "csv/roots/N-a-Z/csv"
+    ],
+    "information_path": "csv/leaves/information.csv",
+    "radius_path": "csv/roots/radius.csv",
+    "surface_file": "simplified_tap_quad_95.vtk",
+    "tiff_file": "final_image.tiff"
+  }
+  
