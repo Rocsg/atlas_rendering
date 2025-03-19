@@ -30,6 +30,10 @@
     "information_path": "csv/leaves/information.csv",
     "radius_path": "csv/roots/radius.csv",
     "surface_file": "mesh/simplified_tap_quad_95.vtk",
-    "tiff_file": "img/final_image.tiff"
+    "tiff_file": "img/final_image.tiff",
+    "_comment7" : "Different offsets if necessary to place surface, slices and volumes",
+    "x_offset" : 480,
+    "y_offset" : 94,
+    "z_offset" : 1693
   }
   

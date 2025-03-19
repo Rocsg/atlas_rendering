@@ -238,14 +238,14 @@ def main(config):
     renderer.AddActor(isoActor)
 
     # Rendu de la surface et du volume
-    surface_renderer = SurfaceRenderer(config.path_to_test_data + os.sep + config.tiff_file, 480, 94, 1693, config.pixel_size, 3, 0.95, renderer, surface_file=config.path_to_test_data + os.sep + config.surface_file)
+    surface_renderer = SurfaceRenderer(config.path_to_test_data + os.sep + config.tiff_file, config.x_offset, config.y_offset, config.z_offset, config.pixel_size, 3, 0.95, renderer, surface_file=config.path_to_test_data + os.sep + config.surface_file)
     renderer.AddActor(surface_renderer.surface_actor)
 
     volume_renderer = VolumeRenderer(
         tiff_file=config.path_to_test_data + os.sep + config.tiff_file,
-        x_offset=480,
-        y_offset=94,
-        z_offset=1693,
+        x_offset=config.x_offset,
+        y_offset=config.y_offset,
+        z_offset=config.z_offset,
         pixel_size=config.pixel_size,
         opacity_factor=5  # Ajuster selon ton besoin
     )
