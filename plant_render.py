@@ -20,21 +20,10 @@ from types import SimpleNamespace
 import numpy as np
 import json
 import vtk
-from vtkmodules.vtkRenderingCore import (
-    vtkActor,
-    vtkPolyDataMapper,
-    vtkRenderWindow,
-    vtkRenderWindowInteractor,
-    vtkRenderer,
-)
-from vtkmodules.vtkFiltersSources import vtkSphereSource
-from vtkmodules.vtkFiltersCore import vtkMarchingCubes
-from vtkmodules.vtkFiltersCore import vtkTubeFilter
-from vtkmodules.vtkFiltersSources import vtkLineSource
-from vtkmodules.vtkCommonColor import vtkNamedColors
-
-from utils import get_curve,get_information,create_color_palettes,get_radius,SliceInteractionHandler,SurfaceRenderer
-
+from vtkmodules.vtkRenderingCore import vtkRenderWindowInteractor
+from data_utils import get_curve,get_radius,read_csv_files,read_information_file,process_curves
+from utils import create_color_palettes,get_color_from_z_roots,get_color_from_z_leaves,count_vertices_and_triangles,compute_z_min_max
+from render_utils import SurfaceRenderer,SliceInteractionHandler,VolumeRenderer,setup_vtk_renderer,create_sphere_actor,create_tube_actor
 
 
 def load_config(config_path="config.json"):
@@ -42,103 +31,10 @@ def load_config(config_path="config.json"):
     with open(config_path, "r") as f:
         return json.load(f)
 
-def count_vertices_and_triangles(renderer):
-    total_vertices = 0
-    total_triangles = 0
-    
-    # Iterate over all actors in the renderer
-    actors = renderer.GetActors()
-    actors.InitTraversal()
-    
-    # Loop through each actor in the scene
-    actor = actors.GetNextItem()
-    while actor:
-        # Get the mapper of the actor
-        mapper = actor.GetMapper()
-        
-        # Get the polydata from the mapper
-        poly_data = mapper.GetInput()
-        
-        # Count the number of vertices and triangles
-        total_vertices += poly_data.GetNumberOfPoints()
-        total_triangles += poly_data.GetNumberOfCells()  # Assuming the polydata has cells like triangles
-        
-        # Move to the next actor
-        actor = actors.GetNextItem()
-    
-    return total_vertices, total_triangles
 
-def get_color_from_z_leaves(z, z_min, z_max, dir_index, palettes):
-    """
-    Chooses a color palette based on the dir_index and returns the color for z.
-    """
-    # Normalize z to the range [0, 1] and clip it to ensure it's within bounds
-    normalized_z = np.clip(1 - (z - z_min) / (z_max - z_min), 0, 1)
-
-    # Retrieve the color palette (lookup table) based on the direction index
-    lookup_table = palettes[dir_index]
-    
-    # Pre-set table range for lookup table, which is constant
-    lookup_table.SetTableRange(0.0, 1.0)
-
-    # Convert the normalized z value to an integer index between 0 and 255
-    color = lookup_table.GetTableValue(int(normalized_z * 255))[:3]
-
-    return color
-
-
-
-def get_color_from_z_roots(z, z_min, z_max):
-    """
-    Uses a "jet" color palette for greater color variation.
-    """
-    # Create a "jet" color table that varies from blue (low) to red (high)
-    lookup_table = vtk.vtkLookupTable()
-    lookup_table.SetNumberOfTableValues(256)
-    lookup_table.Build()
-
-    # Normalize z between 0 and 1
-    normalized_z = (z - z_min) / (z_max - z_min)
-
-    # Use the predefined "jet" palette in VTK (which does a full color gradient)
-    lookup_table.SetTableRange(0.0, 1.0)
-
-    # Get the RGB color from the jet palette
-    color = lookup_table.GetTableValue(int(normalized_z * 255))[:3]
-
-    return color
-
-def normalize(v):
-    norm = np.linalg.norm(v)
-    if norm == 0:
-        return v
-    return v / norm
-
-# Fonction pour calculer l'angle de rotation et l'axe de rotation
-def calculate_rotation_vector(v):
-    # Vecteur de direction du cylindre
-    direction = np.array(v)
-    
-    # Vecteur référence (on suppose l'axe Z comme référence pour la rotation)
-    reference = np.array([0.0, 0.0, 1.0])
-
-    # Produit scalaire pour calculer l'angles
-    dot_product = np.dot(reference, direction)
-    angle = np.arccos(dot_product)
-
-    # Produit vectoriel pour calculer l'axe de rotation
-    axis = np.cross(reference, direction)
-    
-    # Normalisation de l'axe de rotation
-    axis = normalize(axis)
-    
-    return axis, np.degrees(angle)
-
-
-
-def setup_interaction(renderer, surface_renderer):
+def setup_interaction(renderer, surface_renderer,volume_renderer):
     # Créer un gestionnaire d'événements pour les touches fléchées
-    interaction_handler = SliceInteractionHandler(renderer, surface_renderer)
+    interaction_handler = SliceInteractionHandler(renderer, surface_renderer,volume_renderer)
     
     # Créer un interactor et attacher le gestionnaire d'événements
     renderWindowInteractor = vtkRenderWindowInteractor()
@@ -148,196 +44,161 @@ def setup_interaction(renderer, surface_renderer):
     return renderWindowInteractor
 
 
+def process_leaves(renderer, all_leaves_csv_files, curve_points_dict_leaves, information, config, z_min_leaves, z_max_leaves, palettes):
+    """Génère la visualisation des feuilles en 3D."""
+    all_points = []
+    
+    for i, (filename, dir_index) in enumerate(all_leaves_csv_files):
+        levels = [level * config.pixel_size for level in information[i]]
+        curve_data = curve_points_dict_leaves[filename]
+        curve_points = curve_data[0]
+
+        start_point = curve_points[0]
+        x_s, y_s, z_s = [coord * config.pixel_size for coord in start_point]
+
+        curve_color = get_color_from_z_leaves(curve_points[0][2], z_min_leaves, z_max_leaves, dir_index, palettes)
+        
+        # Ajout de la sphère pour le premier point
+        sphereActor = create_sphere_actor(x_s, y_s, z_s, config.base_radius * config.pixel_size, curve_color)
+        renderer.AddActor(sphereActor)
+
+        # Ajout des tubes reliant les points
+        for j, point in enumerate(curve_points[1:], start=1):
+            x, y, z = [coord * config.pixel_size for coord in point]
+            
+            # Choix du rayon en fonction de la hauteur z
+            if z < levels[0]:
+                radius = config.leaf_small_radius * config.pixel_size
+            else:
+                radius = config.leaf_mid_radius * config.pixel_size if z < levels[1] else config.leaf_big_radius * config.pixel_size
+
+            # Ajout du tube
+            tubeActor = create_tube_actor(x_s, y_s, z_s, x, y, z, radius, curve_color)
+            renderer.AddActor(tubeActor)
+
+            x_s, y_s, z_s = x, y, z
+            all_points.append([x, y, z])
+
+    return all_points
+
+def process_roots(curve_points_dict_roots, all_roots_csv_files, radius_points, config, z_min_roots, z_max_roots, renderer):
+    """
+    Traitement des racines en créant des sphères pour les points de départ et des tubes pour les courbes,
+    puis en les ajoutant au renderer.
+
+    :param curve_points_dict_roots: Dictionnaire contenant les courbes des racines.
+    :param all_roots_csv_files: Liste des fichiers CSV des racines.
+    :param radius_points: Liste des points de rayon associés à chaque courbe de racines.
+    :param config: Configuration contenant les paramètres pour le rendu.
+    :param z_min_roots: Valeur minimale de Z pour le mappage de couleurs.
+    :param z_max_roots: Valeur maximale de Z pour le mappage de couleurs.
+    :param renderer: L'instance du renderer pour ajouter les acteurs.
+    :return: Liste des points traités pour les racines.
+    """
+
+    all_points = []
+
+    # Traitement des racines
+    for i, filename in enumerate(all_roots_csv_files):
+        curve_points = curve_points_dict_roots[filename]
+        radius_list = radius_points[i]
+        curve_color = get_color_from_z_roots(curve_points[0][2], z_min_roots, z_max_roots)
+        x_s, y_s, z_s = [coord * config.pixel_size for coord in curve_points[0]]
+
+        for j, point in enumerate(curve_points):
+            x, y, z = [coord * config.pixel_size for coord in point]
+            if j == 0:
+                # Création des sphères pour le premier point de la racine
+                sphereSource = vtk.vtkSphereSource()
+                sphereSource.SetCenter(x, y, z)
+                radius = radius_list[j][1] * config.pixel_size
+                sphereSource.SetRadius((radius + 5) / 2)
+                sphereSource.Update()
+
+                # Setup du mapper et acteur pour la sphère
+                sphereMapper = vtk.vtkPolyDataMapper()
+                sphereMapper.SetInputConnection(sphereSource.GetOutputPort())
+                sphereActor = vtk.vtkActor()
+                sphereActor.SetMapper(sphereMapper)
+                sphereActor.GetProperty().SetOpacity(1.0)
+                sphereActor.GetProperty().SetColor(curve_color)
+                sphereActor.GetProperty().SetInterpolationToFlat()
+
+                # Ajouter l'acteur sphère au renderer
+                renderer.AddActor(sphereActor)
+            else:
+                # Création des tubes pour les points suivants
+                radius = radius_list[j][1] * config.pixel_size
+                lineSource = vtk.vtkLineSource()
+                lineSource.SetPoint1(x_s, y_s, z_s)
+                lineSource.SetPoint2(x, y, z)
+
+                # Tube filter pour la courbe
+                tubeFilter = vtk.vtkTubeFilter()
+                tubeFilter.SetInputConnection(lineSource.GetOutputPort())
+                tubeFilter.SetRadius((radius - 5) / 2)
+                tubeFilter.SetNumberOfSides(12)
+                tubeFilter.Update()
+
+                # Setup du mapper et acteur pour le tube
+                tubeMapper = vtk.vtkPolyDataMapper()
+                tubeMapper.SetInputConnection(tubeFilter.GetOutputPort())
+                tubeActor = vtk.vtkActor()
+                tubeActor.SetMapper(tubeMapper)
+                tubeActor.GetProperty().SetOpacity(1.0)
+                tubeActor.GetProperty().SetColor(curve_color)
+                tubeActor.GetProperty().SetInterpolationToFlat()
+
+                # Ajouter l'acteur tube au renderer
+                renderer.AddActor(tubeActor)
+
+                # Mettre à jour les points de départ pour la prochaine itération
+                x_s, y_s, z_s = x, y, z
+
+            # Ajouter le point courant aux points traités
+            all_points.append([x, y, z])
+
+    return all_points
+
+
 def main(config):
     """
     Renders a 3D visualization of plant roots based on a series of CSV files
     containing curve and radius information, and generates an iso-surface
     using Marching Cubes.
     """
-    # Define directories for CSV files
 
-    # Initialize file lists
-    all_leaves_csv_files = []
-    all_roots_csv_files = []
+    # Initialisation du renderer VTK existant
+    renderer, renderWindow = setup_vtk_renderer()
 
-    # Read CSV files for leaves and roots
-    for i, directory in enumerate(config.csv_directories_leaves):
-        files = sorted(
-            [filename for filename in os.listdir(config.path_to_test_data + os.sep + directory) if filename.endswith(".csv")],
-            key=lambda x: x.lower()
-        )
-        all_leaves_csv_files += [[filename, i] for filename in files]
+    # Lecture des fichiers CSV
+    all_leaves_csv_files = read_csv_files(config.csv_directories_leaves, config.path_to_test_data, track_index=True)
+    all_roots_csv_files = read_csv_files(config.csv_directories_roots, config.path_to_test_data, track_index=False)
 
-    for directory in config.csv_directories_roots:
-        all_roots_csv_files += sorted(
-            [filename for filename in os.listdir(config.path_to_test_data + os.sep + directory) if filename.endswith(".csv")],
-            key=lambda x: x.lower()
-        )
+    # Lecture du fichier d'information
+    information = read_information_file(config.path_to_test_data + os.sep + config.information_path)
 
-    # Get curve data for leaves and roots
-    all_z_leaves = []
-    curve_points_dict_leaves = {}
-    for filename, i in all_leaves_csv_files:
-        directory = config.csv_directories_leaves[i]
-        csv_path = os.path.join(config.path_to_test_data + os.sep + directory, filename)
-        curve_points = get_curve(csv_path,config.curve_sample_leaf)
-        curve_points_dict_leaves[filename] = [curve_points, i]
-        all_z_leaves.append(curve_points[0][2])
-    n_dir = i + 1
+    # Extraction des courbes
+    all_z_leaves, curve_points_dict_leaves = process_curves(all_leaves_csv_files, config.csv_directories_leaves, config.path_to_test_data, config.curve_sample_leaf, track_index=True)
+    all_z_roots, curve_points_dict_roots = process_curves(all_roots_csv_files, config.csv_directories_roots, config.path_to_test_data, config.curve_sample_root, track_index=False)
 
-    all_z_roots = []
-    curve_points_dict_roots = {}
-    for filename in all_roots_csv_files:
-        for directory in config.csv_directories_roots:
-            csv_path = os.path.join(config.path_to_test_data + os.sep + directory, filename)
-            if os.path.exists(csv_path):
-                break
-        curve_points = get_curve(csv_path,config.curve_sample_root)
-        curve_points_dict_roots[filename] = curve_points
-        all_z_roots.append(curve_points[0][2])
+    # Calcul des min/max de Z pour le mapping de couleurs
+    z_min_roots, z_max_roots = compute_z_min_max(all_z_roots)
+    z_min_leaves, z_max_leaves = compute_z_min_max(all_z_leaves)
 
-    # Calculate min/max Z for color mapping
-    z_min_roots = min(all_z_roots)
-    z_max_roots = max(all_z_roots)
-    palettes = create_color_palettes(n_dir)
+    # Création des palettes de couleurs
+    palettes = create_color_palettes(len(config.csv_directories_leaves))
 
-    z_min_leaves = min(all_z_leaves)
-    z_max_leaves = max(all_z_leaves)
+    # Génération de la visualisation des feuilles
+    all_points = process_leaves(renderer, all_leaves_csv_files, curve_points_dict_leaves, information, config, z_min_leaves, z_max_leaves, palettes)
 
-    # Prepare VTK rendering environment
-    colors = vtkNamedColors()
-    renderer = vtkRenderer()
-    renderWindow = vtkRenderWindow()
-    renderWindow.SetWindowName('IsoSurface with Marching Cubes')
-    renderWindow.AddRenderer(renderer)
-
-    # Read information file
-    information = get_information(config.path_to_test_data + os.sep + config.information_path)
-    information = [[float(char) for char in sublist] for sublist in information]
-
-    # Create objects at each point (leaves)
-    all_points = []
-    for i, (filename, dir_index) in enumerate(all_leaves_csv_files):
-        levels = information[i]
-        levels = [level * config.pixel_size for level in levels]
-        curve_data = curve_points_dict_leaves[filename]
-        curve_points = curve_data[0]
-        start_point = curve_points[0]
-        x_s, y_s, z_s = [coord * config.pixel_size for coord in start_point]
-        curve_color = get_color_from_z_leaves(
-            curve_points[0][2], z_min_leaves, z_max_leaves, dir_index, palettes
-        )
-        for j, point in enumerate(curve_points):
-            x, y, z = [coord * config.pixel_size for coord in point]
-            if j == 0:
-                sphereSource = vtkSphereSource()
-                sphereSource.SetCenter(x, y, z)
-                radius = config.base_radius * config.pixel_size
-                sphereSource.SetRadius(radius)
-                sphereSource.Update()
-
-                # Setup sphere mapper and actor
-                sphereMapper = vtkPolyDataMapper()
-                sphereMapper.SetInputConnection(sphereSource.GetOutputPort())
-                sphereActor = vtkActor()
-                sphereActor.SetMapper(sphereMapper)
-                sphereActor.GetProperty().SetOpacity(1.0)
-                sphereActor.GetProperty().SetColor(curve_color)
-                sphereActor.GetProperty().SetInterpolationToFlat()
-                # Add the sphere actor to the renderer
-                renderer.AddActor(sphereActor)
-            else:
-                if z < levels[0]:
-                    radius = config.leaf_small_radius * config.pixel_size
-                else : 
-                    radius = config.leaf_mid_radius * config.pixel_size if z < levels[1] else config.leaf_big_radius * config.pixel_size
-                
-                # Tube
-                lineSource = vtkLineSource()
-                lineSource.SetPoint1(x_s, y_s, z_s)
-                lineSource.SetPoint2(x, y, z)
-
-                # Tube filter for the curve
-                tubeFilter = vtkTubeFilter()
-                tubeFilter.SetInputConnection(lineSource.GetOutputPort())
-                tubeFilter.SetRadius(radius)
-                tubeFilter.SetNumberOfSides(12)
-                tubeFilter.Update()
-
-                # Setup tube mapper and actor
-                tubeMapper = vtkPolyDataMapper()
-                tubeMapper.SetInputConnection(tubeFilter.GetOutputPort())
-                tubeActor = vtkActor()
-                tubeActor.SetMapper(tubeMapper)
-                tubeActor.GetProperty().SetOpacity(1.0)
-                tubeActor.GetProperty().SetColor(curve_color)
-                tubeActor.GetProperty().SetInterpolationToFlat()
-                # Add the tube actor to the renderer
-                renderer.AddActor(tubeActor)
-
-                x_s, y_s, z_s = x, y, z
-            all_points.append([x, y, z])
-
-    # Process roots
+    # Processus des racines
     curve_lengths = [len(curve_points) for curve_points in curve_points_dict_roots.values()]
     radius_points = get_radius(config.path_to_test_data + os.sep + config.radius_path, curve_lengths)
-    for i, filename in enumerate(all_roots_csv_files):
-        curve_points = curve_points_dict_roots[filename]
-        radius_list = radius_points[i]
-        curve_color = get_color_from_z_roots(curve_points[0][2], z_min_roots, z_max_roots)
-        x_s, y_s, z_s = [coord * config.pixel_size for coord in curve_points[0]]
-        for j, point in enumerate(curve_points):
-            x, y, z = [coord * config.pixel_size for coord in point]
-            if j == 0:
-                sphereSource = vtkSphereSource()
-                sphereSource.SetCenter(x, y, z)
-                radius = radius_list[j][1] * config.pixel_size
-                sphereSource.SetRadius((radius+5)/2)
-                sphereSource.Update()
+    
+    all_points.extend(process_roots(curve_points_dict_roots, all_roots_csv_files, radius_points, config, z_min_roots, z_max_roots, renderer))
 
-                # Setup sphere mapper and actor
-                sphereMapper = vtkPolyDataMapper()
-                sphereMapper.SetInputConnection(sphereSource.GetOutputPort())
-                sphereActor = vtkActor()
-                sphereActor.SetMapper(sphereMapper)
-                sphereActor.GetProperty().SetOpacity(1.0)
-                sphereActor.GetProperty().SetColor(curve_color)
-
-                # Add the sphere actor to the renderer
-                sphereActor.GetProperty().SetInterpolationToFlat()
-                renderer.AddActor(sphereActor)
-            else : 
-                radius = radius_list[j][1] * config.pixel_size
-                lineSource = vtkLineSource()
-                lineSource.SetPoint1(x_s, y_s, z_s)
-                lineSource.SetPoint2(x, y, z)
-
-                # Tube filter for the curve
-                tubeFilter = vtkTubeFilter()
-                tubeFilter.SetInputConnection(lineSource.GetOutputPort())
-                tubeFilter.SetRadius((radius-5)/2)
-                tubeFilter.SetNumberOfSides(12)
-                tubeFilter.Update()
-
-                # Setup tube mapper and actor
-                tubeMapper = vtkPolyDataMapper()
-                tubeMapper.SetInputConnection(tubeFilter.GetOutputPort())
-                tubeActor = vtkActor()
-                tubeActor.SetMapper(tubeMapper)
-                tubeActor.GetProperty().SetOpacity(1.0)
-                tubeActor.GetProperty().SetColor(curve_color)
-
-                # Add the tube actor to the renderer
-                tubeActor.GetProperty().SetInterpolationToFlat()
-                renderer.AddActor(tubeActor)
-
-                x_s, y_s, z_s = x, y, z
-
-
-
-            all_points.append([x, y, z])
-
-    # Create 3D grid and fill it with point density
+    # Création de la grille 3D et remplissage avec la densité des points
     spacing = 2.0
     grid = vtk.vtkImageData()
     grid.SetDimensions(500, 500, 500)
@@ -359,53 +220,61 @@ def main(config):
     for x, y, z in zip(x_idx, y_idx, z_idx):
         grid.SetScalarComponentFromDouble(x, y, z, 0, 1.0)
 
-    # Use Marching Cubes for iso-surface extraction
-    marchingCubes = vtkMarchingCubes()
+    # Marching Cubes pour l'extraction de la surface iso
+    marchingCubes = vtk.vtkMarchingCubes()
     marchingCubes.SetInputData(grid)
     marchingCubes.ComputeNormalsOn()
     marchingCubes.SetValue(0, 0.9)
     marchingCubes.Update()
 
-    # Create mapper and actor for iso-surface
-    isoMapper = vtkPolyDataMapper()
+    # Création du mapper et de l'acteur pour la surface iso
+    isoMapper = vtk.vtkPolyDataMapper()
     isoMapper.SetInputConnection(marchingCubes.GetOutputPort())
-    isoActor = vtkActor()
+    isoActor = vtk.vtkActor()
     isoActor.SetMapper(isoMapper)
     isoActor.GetProperty().SetInterpolationToPhong()
 
-    # Add iso-surface actor to renderer
+    # Ajouter l'acteur iso-surface au renderer
     renderer.AddActor(isoActor)
 
+    # Rendu de la surface et du volume
+    surface_renderer = SurfaceRenderer(config.path_to_test_data + os.sep + config.tiff_file, 480, 94, 1693, config.pixel_size, 3, 0.95, renderer, surface_file=config.path_to_test_data + os.sep + config.surface_file)
+    renderer.AddActor(surface_renderer.surface_actor)
 
-    use_orthoslicer=True
-    if(use_orthoslicer):
-        surface_renderer=SurfaceRenderer(config.path_to_test_data + os.sep + config.tiff_file,480,94,1693,config.pixel_size,3,0.95,renderer,surface_file=config.path_to_test_data + os.sep + config.surface_file)
-        renderer.AddActor(surface_renderer.surface_actor)
-    else:
-        a=1 #TODO
-        #Faire pareil mais avec du volume rendering
+    volume_renderer = VolumeRenderer(
+        tiff_file=config.path_to_test_data + os.sep + config.tiff_file,
+        x_offset=480,
+        y_offset=94,
+        z_offset=1693,
+        pixel_size=config.pixel_size,
+        opacity_factor=5  # Ajuster selon ton besoin
+    )
+    renderer.AddVolume(volume_renderer.get_volume())
 
     total_vertices, total_triangles = count_vertices_and_triangles(renderer)
     print(f"Total vertices: {total_vertices}")
     print(f"Total triangles: {total_triangles}")
 
-    # Set up the render window and interaction
-    renderWindowInteractor = setup_interaction(renderer, surface_renderer)
-    renderer.SetBackground(colors.GetColor3d('DarkSlateGray'))
     renderer.ResetCamera()
 
-    # Adjust camera
+    # Ajuster la caméra
     camera = renderer.GetActiveCamera()
     camera.Zoom(1)
     center = np.mean(all_points_np, axis=0)
-    camera.SetPosition(center[0], center[1] -40000, center[2])
+    camera.SetPosition(center[0], center[1] - 50000, center[2]-35000)
     camera.SetFocalPoint(center[0], center[1], center[2])
     camera.SetViewUp(0, 0, 1)
+    camera.SetClippingRange(1000, 80000)
 
+    # Définir la taille et afficher la scène
     renderWindow.SetSize(800, 800)
-    renderWindow.Render()
-    renderWindowInteractor.Start()
 
+    # Lancer l'interaction avec le renderer déjà créé
+    renderWindow.Render()
+
+    # Ajout de l'interaction pour le contrôle de la scène
+    renderWindowInteractor = setup_interaction(renderer, surface_renderer, volume_renderer)
+    renderWindowInteractor.Start()
 
 if __name__ == "__main__":
     import argparse
