@@ -2,6 +2,10 @@ import os
 import vtk
 from vtk.util import numpy_support
 import tifffile
+from vtkmodules.vtkInteractionWidgets import (
+    vtkSliderRepresentation2D,
+    vtkSliderWidget
+)
 
 def setup_vtk_renderer():
     """
@@ -117,6 +121,323 @@ class SliceInteractionHandler:
         self.volume_renderer=volume_renderer
         self.volume_visibility=True
         self.opacity_factor=volume_renderer.opacity_factor
+        self.text_visible=False
+        
+    def create_sliders(self):
+        # X-axis slice slider
+        self.x_slider_rep = vtk.vtkSliderRepresentation2D()
+        self.x_slider_rep.SetMinimumValue(0)
+        self.x_slider_rep.SetMaximumValue(self.surface_renderer.volume_data.GetDimensions()[0] - 1)
+        self.x_slider_rep.SetValue(self.current_xslice_index)
+        self.x_slider_rep.SetTitleText("X Slice")
+
+        # Set the position using normalized display coordinates
+        self.x_slider_rep.GetPoint1Coordinate().SetCoordinateSystemToNormalizedDisplay()
+        self.x_slider_rep.GetPoint1Coordinate().SetValue(0.83, 0.9)  # 2D position, Z = 0 by default
+        self.x_slider_rep.GetPoint2Coordinate().SetCoordinateSystemToNormalizedDisplay()
+        self.x_slider_rep.GetPoint2Coordinate().SetValue(0.98, 0.9)  # 2D position, Z = 0 by default
+        self.x_slider_rep.SetSliderWidth(0.02)
+        self.x_slider_rep.SetTubeWidth(0.005)   
+        self.x_slider_rep.GetTubeProperty().SetColor(1,1,1)
+        self.x_slider_rep.GetCapProperty().SetColor(1,0,0)
+        self.x_slider_rep.GetSliderProperty().SetColor(1,0,0)
+        self.x_slider_rep.SetEndCapLength(0.01) 
+        self.x_slider_rep.SetEndCapWidth(0.01)
+        self.x_slider_rep.GetTitleProperty().SetBold(1)  
+        self.x_slider_rep.GetTitleProperty().SetItalic(1)  
+        self.x_slider_rep.GetTitleProperty().SetColor(1, 1, 1)  
+        self.x_slider_rep.GetLabelProperty().SetColor(1, 1, 0)  
+        self.x_slider_rep.GetTitleProperty().SetBackgroundColor(0,1,0)
+        self.x_slider_rep.GetTubeProperty().SetOpacity(0.7)   
+        self.x_slider_rep.GetCapProperty().SetOpacity(0.7)     
+        self.x_slider_rep.GetSliderProperty().SetOpacity(0.7)  
+        self.x_slider_rep.GetTitleProperty().SetOpacity(0.7)  
+        self.x_slider_rep.GetLabelProperty().SetOpacity(0.7)   
+    
+        self.x_slider_widget = vtk.vtkSliderWidget()
+        self.x_slider_widget.SetRepresentation(self.x_slider_rep)
+        self.x_slider_widget.SetInteractor(self.renderer.GetRenderWindow().GetInteractor())
+        self.x_slider_widget.AddObserver("InteractionEvent", self.on_x_slider_change)
+
+        # Y-axis slice slider
+        self.y_slider_rep = vtk.vtkSliderRepresentation2D()
+        self.y_slider_rep.SetMinimumValue(0)
+        self.y_slider_rep.SetMaximumValue(self.surface_renderer.volume_data.GetDimensions()[1] - 1)
+        self.y_slider_rep.SetValue(self.current_yslice_index)
+        self.y_slider_rep.SetTitleText("Y Slice")
+
+        # Set the position using normalized display coordinates
+        self.y_slider_rep.GetPoint1Coordinate().SetCoordinateSystemToNormalizedDisplay()
+        self.y_slider_rep.GetPoint1Coordinate().SetValue(0.83, 0.78)  # 2D position, Z = 0 by default
+        self.y_slider_rep.GetPoint2Coordinate().SetCoordinateSystemToNormalizedDisplay()
+        self.y_slider_rep.GetPoint2Coordinate().SetValue(0.98, 0.78)  # 2D position, Z = 0 by default
+        self.y_slider_rep.SetSliderWidth(0.02)
+        self.y_slider_rep.SetTubeWidth(0.005)   
+        self.y_slider_rep.GetTubeProperty().SetColor(1,1,1)
+        self.y_slider_rep.GetCapProperty().SetColor(1,0,0)
+        self.y_slider_rep.GetSliderProperty().SetColor(1,0,0)
+        self.y_slider_rep.SetEndCapLength(0.01) 
+        self.y_slider_rep.SetEndCapWidth(0.01)
+        self.y_slider_rep.GetTitleProperty().SetItalic(1)  
+        self.y_slider_rep.GetTitleProperty().SetColor(1, 1, 1)  
+        self.y_slider_rep.GetLabelProperty().SetColor(1, 1, 0)  
+        self.y_slider_rep.GetTubeProperty().SetOpacity(0.7)   
+        self.y_slider_rep.GetCapProperty().SetOpacity(0.7)     
+        self.y_slider_rep.GetSliderProperty().SetOpacity(0.7)  
+        self.y_slider_rep.GetTitleProperty().SetOpacity(0.7)  
+        self.y_slider_rep.GetLabelProperty().SetOpacity(0.7)
+
+        self.y_slider_widget = vtk.vtkSliderWidget()
+        self.y_slider_widget.SetRepresentation(self.y_slider_rep)
+        self.y_slider_widget.SetInteractor(self.renderer.GetRenderWindow().GetInteractor())
+        self.y_slider_widget.AddObserver("InteractionEvent", self.on_y_slider_change)
+
+        # Z-axis slice slider
+        self.z_slider_rep = vtk.vtkSliderRepresentation2D()
+        self.z_slider_rep.SetMinimumValue(0)
+        self.z_slider_rep.SetMaximumValue(self.surface_renderer.volume_data.GetDimensions()[2] - 1)
+        self.z_slider_rep.SetValue(self.current_zslice_index)
+        self.z_slider_rep.SetTitleText("Z Slice")
+
+        # Set the position using normalized display coordinates
+        self.z_slider_rep.GetPoint1Coordinate().SetCoordinateSystemToNormalizedDisplay()
+        self.z_slider_rep.GetPoint1Coordinate().SetValue(0.83, 0.66)  # 2D position, Z = 0 by default
+        self.z_slider_rep.GetPoint2Coordinate().SetCoordinateSystemToNormalizedDisplay()
+        self.z_slider_rep.GetPoint2Coordinate().SetValue(0.98, 0.66)  # 2D position, Z = 0 by default
+        self.z_slider_rep.SetSliderWidth(0.02)
+        self.z_slider_rep.SetTubeWidth(0.005)   
+        self.z_slider_rep.GetTubeProperty().SetColor(1,1,1)
+        self.z_slider_rep.GetCapProperty().SetColor(1,0,0)
+        self.z_slider_rep.GetSliderProperty().SetColor(1,0,0)
+        self.z_slider_rep.SetEndCapLength(0.01) 
+        self.z_slider_rep.SetEndCapWidth(0.01)
+        self.z_slider_rep.GetTitleProperty().SetItalic(1)  
+        self.z_slider_rep.GetTitleProperty().SetColor(1, 1, 1)  
+        self.z_slider_rep.GetLabelProperty().SetColor(1, 1, 0)  
+        self.z_slider_rep.GetTubeProperty().SetOpacity(0.7)   
+        self.z_slider_rep.GetCapProperty().SetOpacity(0.7)     
+        self.z_slider_rep.GetSliderProperty().SetOpacity(0.7)  
+        self.z_slider_rep.GetTitleProperty().SetOpacity(0.7)  
+        self.z_slider_rep.GetLabelProperty().SetOpacity(0.7)
+
+        self.z_slider_widget = vtk.vtkSliderWidget()
+        self.z_slider_widget.SetRepresentation(self.z_slider_rep)
+        self.z_slider_widget.SetInteractor(self.renderer.GetRenderWindow().GetInteractor())
+        self.z_slider_widget.AddObserver("InteractionEvent", self.on_z_slider_change)
+
+        self.opacity_slider_rep = vtk.vtkSliderRepresentation2D()
+        self.opacity_slider_rep.SetMinimumValue(0)
+        self.opacity_slider_rep.SetMaximumValue(30)
+        self.opacity_slider_rep.SetValue(self.opacity_factor)
+        self.opacity_slider_rep.SetTitleText("Volume Opacity")
+
+        self.opacity_slider_rep.GetPoint1Coordinate().SetCoordinateSystemToNormalizedDisplay()
+        self.opacity_slider_rep.GetPoint1Coordinate().SetValue(0.83, 0.54)  # 2D position, Z = 0 by default
+        self.opacity_slider_rep.GetPoint2Coordinate().SetCoordinateSystemToNormalizedDisplay()
+        self.opacity_slider_rep.GetPoint2Coordinate().SetValue(0.98, 0.54)  # 2D position, Z = 0 by default
+        self.opacity_slider_rep.SetSliderWidth(0.02)
+        self.opacity_slider_rep.SetTubeWidth(0.005)   
+        self.opacity_slider_rep.GetTubeProperty().SetColor(1,1,1)
+        self.opacity_slider_rep.GetCapProperty().SetColor(1,0,0)
+        self.opacity_slider_rep.GetSliderProperty().SetColor(1,0,0)
+        self.opacity_slider_rep.SetEndCapLength(0.01) 
+        self.opacity_slider_rep.SetEndCapWidth(0.01)
+        self.opacity_slider_rep.GetTitleProperty().SetItalic(1)  
+        self.opacity_slider_rep.GetTitleProperty().SetColor(1, 1, 1)  
+        self.opacity_slider_rep.GetLabelProperty().SetColor(1, 1, 0)  
+        self.opacity_slider_rep.GetTubeProperty().SetOpacity(0.7)   
+        self.opacity_slider_rep.GetCapProperty().SetOpacity(0.7)     
+        self.opacity_slider_rep.GetSliderProperty().SetOpacity(0.7)  
+        self.opacity_slider_rep.GetTitleProperty().SetOpacity(0.7)  
+        self.opacity_slider_rep.GetLabelProperty().SetOpacity(0.7)
+
+        self.opacity_slider_widget = vtk.vtkSliderWidget()
+        self.opacity_slider_widget.SetRepresentation(self.opacity_slider_rep)
+        self.opacity_slider_widget.SetInteractor(self.renderer.GetRenderWindow().GetInteractor())
+        self.opacity_slider_widget.AddObserver("InteractionEvent", self.on_opacity_slider_change)
+        # Enable the sliders
+        self.x_slider_widget.EnabledOn()
+        self.y_slider_widget.EnabledOn()
+        self.z_slider_widget.EnabledOn()
+        self.opacity_slider_widget.EnabledOn()
+        
+
+
+    def on_x_slider_change(self, obj, event):
+        # Update the X slice index based on the slider value
+        self.previous_xslice_index=self.current_xslice_index
+        self.current_xslice_index = int(self.x_slider_rep.GetValue())
+        self.previous_axis=self.current_axis
+        self.update_renderer_with_new_slice_x()
+
+    def on_y_slider_change(self, obj, event):
+        # Update the Y slice index based on the slider value
+        self.previous_yslice_index=self.current_yslice_index
+        self.current_yslice_index = int(self.y_slider_rep.GetValue())
+        self.previous_axis=self.current_axis
+        self.update_renderer_with_new_slice_y()
+
+    def on_z_slider_change(self, obj, event):
+        # Update the Z slice index based on the slider value
+        self.previous_zslice_index=self.current_zslice_index
+        self.current_zslice_index = int(self.z_slider_rep.GetValue())
+        self.previous_axis=self.current_axis
+        self.update_renderer_with_new_slice_z()
+
+    def on_opacity_slider_change(self, obj, event):
+        # Update the opacity factor based on the slider value
+        self.opacity_factor = self.opacity_slider_rep.GetValue()
+        self.volume_renderer.opacity_factor = self.opacity_factor
+        self.volume_renderer.update_opacity_transfer_function()
+        self.renderer.GetRenderWindow().GetInteractor().Render()
+
+
+    def toggle_slider(self, widget,enable):
+        if enable:
+            widget.EnabledOn()
+        else:
+            widget.EnabledOff()
+
+    def create_text(self) :
+        self.text_actor = vtk.vtkTextActor()
+        self.text_actor.GetPositionCoordinate().SetCoordinateSystemToNormalizedDisplay()
+        self.text_actor.SetPosition(0.05, 0.95)
+        self.text_actor.GetPosition2Coordinate().SetCoordinateSystemToNormalizedDisplay()
+        self.text_actor.GetTextProperty().SetFontSize(24)
+        self.text_actor.GetTextProperty().SetColor(0.5, 1, 0)
+        self.text_actor.GetTextProperty().SetBold(1)
+        self.text_actor.GetTextProperty().SetItalic(1)
+        self.text_actor.GetTextProperty().SetOpacity(0.8)
+        self.renderer.AddActor(self.text_actor)
+        if(self.current_axis==0) :
+            text = "X"
+        elif(self.current_axis==1) :
+            text = "Y"
+        else : 
+            text = "Z"
+        self.text_actor.SetInput(f"Current Axis: {text}")
+        self.renderer.GetRenderWindow().Render()
+        self.text_help_actor = vtk.vtkTextActor()
+        self.text_help_actor.GetPositionCoordinate().SetCoordinateSystemToNormalizedDisplay()
+        self.text_help_actor.SetPosition(0.05, 0.05)
+        self.text_help_actor.GetPosition2Coordinate().SetCoordinateSystemToNormalizedDisplay()
+        self.text_help_actor.GetTextProperty().SetFontSize(16)
+        self.text_help_actor.GetTextProperty().SetColor(1, 1, 1)
+        self.text_help_actor.GetTextProperty().SetBold(1)
+        self.text_help_actor.GetTextProperty().SetItalic(1)
+        self.text_help_actor.GetTextProperty().SetOpacity(0.8)
+        self.renderer.AddActor(self.text_help_actor)
+        self.text_help_actor.SetInput(
+        "The key press events are as follows:\n"
+        "- 'd' or 'D': Toggle visibility of all slices.\n"
+        "- 'k' or 'K': Decrease the offset for the slice index by 1.\n"
+        "- 'l' or 'L': Increase the offset for the slice index by 1.\n"
+        "- 'o' or 'O': Toggle visibility of the surface renderer.\n"
+        "- 'p' or 'P': Toggle visibility of the volume renderer.\n"
+        "- 'b' or 'B': Decrease the opacity of the volume renderer by 0.5.\n"
+        "- 'n' or 'N': Increase the opacity of the volume renderer by 0.5.\n"
+        "- 'Left': Decrease the slice index by the current offset.\n"
+        "- 'Right': Increase the slice index by the current offset.\n"
+        "- 'Up': Switch to the next axis (Y-axis -> Z-axis -> X-axis).\n"
+        "- 'Down': Switch to the previous axis (X-axis -> Y-axis -> Z-axis)."
+        )
+        self.text_help_actor.SetVisibility(False)
+
+    def update_text_value(self):
+        if(self.current_axis==0) :
+            text = "X"
+        elif(self.current_axis==1) :
+            text = "Y"
+        else : 
+            text = "Z"
+        self.text_actor.SetInput(f"Current Axis: {text}")
+        self.renderer.GetRenderWindow().Render()
+
+
+
+    def createImage(self, image, color1, color2):
+        size = 12  # Image size (12x12 pixels)
+        padding = 2  # Margin around the "H"
+        dims = [size, size, 1]  # Image dimensions (width, height, depth)
+
+        # Define the "H" shape dimensions
+        bar_thickness = 2  # Width of the vertical bars
+        center_y = size // 2  # Position of the horizontal bar
+        center_thickness = 2  # Thickness of the horizontal bar
+
+        # Specify the image data size
+        image.SetDimensions(dims[0], dims[1], dims[2])
+        arr = vtk.vtkUnsignedCharArray()  # Create an array to store pixel colors
+        arr.SetNumberOfComponents(3)  # Each pixel has 3 color components (RGB)
+        arr.SetNumberOfTuples(dims[0] * dims[1])  # Number of pixels (width * height)
+        arr.SetName('scalars')  # Name the array as 'scalars'
+
+        # Fill the pixels to form an "H" with a uniform margin
+        for y in range(dims[1]):  # Loop through rows (Y-axis)
+            for x in range(dims[0]):  # Loop through columns (X-axis)
+                # Check if the pixel belongs to the "H"
+                if (padding <= x < padding + bar_thickness or 
+                    size - padding - bar_thickness <= x < size - padding) and (padding <= y < size - padding) or \
+                (center_y - center_thickness // 2 <= y < center_y + center_thickness // 2 and
+                    padding <= x < size - padding):
+                    arr.SetTuple3(y * size + x, color2[0], color2[1], color2[2])  # Set color for the "H"
+                else:
+                    arr.SetTuple3(y * size + x, color1[0], color1[1], color1[2])  # Set color for the background (border)
+
+        # Add the color array to the image and set it as the active scalars
+        image.GetPointData().AddArray(arr)
+        image.GetPointData().SetActiveScalars('scalars')
+
+
+    def createButtonOff(self,image):
+        white = [255, 255, 255]
+        red = [255,0,0]
+        self.createImage(image, white, red)
+
+
+    def createButtonOn(self,image):
+        white = [255, 255, 255]
+        green = [0, 255, 0 ]
+        self.createImage(image, white, green)
+
+    def create_button(self):
+        # Create a button representation
+        self.button_rep = vtk.vtkTexturedButtonRepresentation2D()
+        self.button_rep.SetNumberOfStates(2)
+        image1 = vtk.vtkImageData()
+        image2 = vtk.vtkImageData()
+        self.createButtonOff(image1)
+        self.createButtonOn(image2)
+        self.button_rep.SetButtonTexture(0, image1)
+        self.button_rep.SetButtonTexture(1, image2)
+        self.button_rep.SetPlaceFactor(1)  # Scale button size
+        upperRight = vtk.vtkCoordinate()
+        upperRight.SetCoordinateSystemToNormalizedDisplay()
+        upperRight.SetValue(0.05, 0.05)
+        bds = [0]*6
+        sz = 30.0
+        bds[0] = upperRight.GetComputedDisplayValue(self.renderer)[0] - sz
+        bds[1] = bds[0] + sz
+        bds[2] = upperRight.GetComputedDisplayValue(self.renderer)[1] - sz
+        bds[3] = bds[2] + sz
+        bds[4] = bds[5] = 0.0
+        self.button_rep.GetProperty().SetOpacity(0.8)
+        self.button_rep.PlaceWidget(bds)  # Scale button size
+
+        # Create the button widget
+        self.button_widget = vtk.vtkButtonWidget()
+        self.button_widget.SetRepresentation(self.button_rep)
+        self.button_widget.SetInteractor(self.renderer.GetRenderWindow().GetInteractor())
+        self.button_widget.AddObserver("StateChangedEvent", self.on_button_click)
+        self.button_widget.EnabledOn()
+
+    def on_button_click(self, obj, event):
+        # Toggle the visibility of the text
+        self.text_visible = not self.text_visible
+        self.text_help_actor.SetVisibility(self.text_visible)
+        
+        self.renderer.GetRenderWindow().GetInteractor().Render()
+
         
 
     def on_key_press(self, obj, event):
@@ -164,15 +485,17 @@ class SliceInteractionHandler:
             self.previous_axis=self.current_axis
             self.current_axis = (self.current_axis + 1) % 3
             self.current_slice_index = 0  # Reset to the first slice of the new axis
+            self.update_text_value()
             self.update_renderer_with_new_slice()
         elif key == 'Down':
             # Switch to the previous axis (X-axis -> Y-axis -> Z-axis)
             self.previous_axis=self.current_axis
             self.current_axis = (self.current_axis - 1) % 3
             self.current_slice_index = 0  # Reset to the first slice of the new axis
+            self.update_text_value()
             self.update_renderer_with_new_slice()
  
-            
+    
     def toggle_surface(self) :
         """
         Toggle the visibility of the surface.
@@ -210,7 +533,7 @@ class SliceInteractionHandler:
         :type factor: float
         """
         self.opacity_factor += factor
-        
+        self.opacity_slider_rep.SetValue(self.opacity_factor)
         # Update the opacity transfer function of the volume renderer
         self.volume_renderer.opacity_factor = self.opacity_factor
         self.volume_renderer.update_opacity_transfer_function()  # Add a method in VolumeRenderer to update opacity
@@ -252,16 +575,19 @@ class SliceInteractionHandler:
             self.current_xslice_index = new_index
             self.previous_axis=self.current_axis
             self.update_renderer_with_new_slice()
+            self.x_slider_rep.SetValue(self.current_xslice_index)
         elif self.current_axis == 1 and self.slices_visible_y:
             self.previous_yslice_index = self.current_yslice_index
             self.current_yslice_index = new_index
             self.previous_axis=self.current_axis
             self.update_renderer_with_new_slice()
+            self.y_slider_rep.SetValue(self.current_yslice_index)
         elif self.current_axis == 2 and self.slices_visible_z:
             self.previous_zslice_index = self.current_zslice_index
             self.current_zslice_index = new_index
             self.previous_axis=self.current_axis
             self.update_renderer_with_new_slice()
+            self.z_slider_rep.SetValue(self.current_zslice_index)
         
         
 
@@ -280,6 +606,37 @@ class SliceInteractionHandler:
         elif(self.current_axis==2 and self.slices_visible_z):
             self.renderer.AddActor(self.surface_renderer.slice_actors[self.current_axis][self.current_zslice_index])
 
+        # Update the render window
+        self.renderer.GetRenderWindow().Render()
+
+
+    def update_renderer_with_new_slice_x(self):
+        """
+        Remove the previous slice and add the new slice to the renderer.
+        """
+        # Remove the current slice actor from the renderer
+        self.renderer.RemoveActor(self.surface_renderer.slice_actors[0][self.previous_xslice_index])
+        self.renderer.AddActor(self.surface_renderer.slice_actors[0][self.current_xslice_index])
+        # Update the render window
+        self.renderer.GetRenderWindow().Render()
+
+    def update_renderer_with_new_slice_y(self):
+        """
+        Remove the previous slice and add the new slice to the renderer.
+        """
+        # Remove the current slice actor from the renderer
+        self.renderer.RemoveActor(self.surface_renderer.slice_actors[1][self.previous_yslice_index])
+        self.renderer.AddActor(self.surface_renderer.slice_actors[1][self.current_yslice_index])
+        # Update the render window
+        self.renderer.GetRenderWindow().Render()
+
+    def update_renderer_with_new_slice_z(self):
+        """
+        Remove the previous slice and add the new slice to the renderer.
+        """
+        # Remove the current slice actor from the renderer
+        self.renderer.RemoveActor(self.surface_renderer.slice_actors[2][self.previous_zslice_index])
+        self.renderer.AddActor(self.surface_renderer.slice_actors[2][self.current_zslice_index])
         # Update the render window
         self.renderer.GetRenderWindow().Render()
 
@@ -307,18 +664,21 @@ class SliceInteractionHandler:
             else : 
                 self.renderer.AddActor(self.surface_renderer.slice_actors[self.current_axis][self.current_xslice_index])
             self.slices_visible_x = not self.slices_visible_x
+            self.toggle_slider(self.x_slider_widget,self.slices_visible_x)
         elif(self.current_axis==1) :
             if self.slices_visible_y:
                 self.renderer.RemoveActor(self.surface_renderer.slice_actors[self.current_axis][self.current_yslice_index])
             else : 
                 self.renderer.AddActor(self.surface_renderer.slice_actors[self.current_axis][self.current_yslice_index])
             self.slices_visible_y = not self.slices_visible_y
+            self.toggle_slider(self.y_slider_widget,self.slices_visible_y)
         else : 
             if self.slices_visible_z:
                 self.renderer.RemoveActor(self.surface_renderer.slice_actors[self.current_axis][self.current_zslice_index])
             else : 
                 self.renderer.AddActor(self.surface_renderer.slice_actors[self.current_axis][self.current_zslice_index])
             self.slices_visible_z = not self.slices_visible_z
+            self.toggle_slider(self.z_slider_widget,self.slices_visible_z)
 
         # Update the render window
         self.renderer.GetRenderWindow().Render()
@@ -650,10 +1010,10 @@ class VolumeRenderer:
         opacity_transfer_function.AddPoint(0, 0.0)  # Fully transparent
         opacity_transfer_function.AddPoint(10, 0.0)  # Fully transparent
         opacity_transfer_function.AddPoint(30, 0.0)  # Semi-transparent
-        opacity_transfer_function.AddPoint(50, 0.005 * self.opacity_factor)
-        opacity_transfer_function.AddPoint(60, 0.01 * self.opacity_factor)
-        opacity_transfer_function.AddPoint(100, 0.015 * self.opacity_factor)
-        opacity_transfer_function.AddPoint(130, 0.02 * self.opacity_factor)  # Almost opaque
+        opacity_transfer_function.AddPoint(50, 0 + self.opacity_factor*0.005)
+        opacity_transfer_function.AddPoint(60, 0.0+ self.opacity_factor*0.01)
+        opacity_transfer_function.AddPoint(100, 0.0 + self.opacity_factor*0.015)
+        opacity_transfer_function.AddPoint(130, 0.0 + self.opacity_factor*0.02)  # Almost opaque
 
         return opacity_transfer_function
 

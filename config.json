@@ -1,5 +1,5 @@
-{   
-    "_comment": "Configuration file for the plant rendering program.",
+{
+"_comment": "Configuration file for the plant rendering program.",
     "_comment2": "  Radius for the sphere at the base of leaves.",
     "base_radius": 20,
     "_comment3": "Radius for the different parts of leaves",
@@ -12,28 +12,27 @@
     "_comment5": "Pixel size to get back to physical metrics",
     "pixel_size": 12,
     "_comment6": "Different directories,paths and files required",
-    "path_to_test_data" : "/home/rfernandez/Bureau/A_Test/thomas_test_data",
+    "path_to_test_data" : "/home/caro/Documents/Ressources/Annotation_plante_01/",
     "path_to_dev_data" : "/home/rfernandez/Bureau/A_Test/atlas_dev_dataset",
     "csv_directories_leaves": [
-      "csv/leaves/tale_0/csv",
-      "csv/leaves/tale_2/csv",
-      "csv/leaves/tale_2-1/csv",
-      "csv/leaves/tale_3/csv",
-      "csv/leaves/tale_4/csv"
+      "feuilles/tale_0/csv",
+      "feuilles/tale_2/csv",
+      "feuilles/tale_2-1/csv",
+      "feuilles/tale_3/csv",
+      "feuilles/tale_4/csv"
     ],
     "csv_directories_roots": [
-      "csv/roots/a-a-m/csv",
-      "csv/roots/A-a-M/csv",
-      "csv/roots/n-a-z/csv",
-      "csv/roots/N-a-Z/csv"
+      "racines/a-a-m/csv",
+      "racines/A-a-M/csv",
+      "racines/n-a-z/csv",
+      "racines/N-a-Z/csv"
     ],
-    "information_path": "csv/leaves/information.csv",
-    "radius_path": "csv/roots/radius.csv",
+    "information_path": "feuilles/information.csv",
+    "radius_path": "racines/radius.csv",
     "surface_file": "mesh/simplified_tap_quad_95.vtk",
-    "tiff_file": "img/final_image.tiff",
+    "tiff_file": "img/final_image_grayscale_contrast.tif",
     "_comment7" : "Different offsets if necessary to place surface, slices and volumes",
     "x_offset" : 480,
     "y_offset" : 94,
     "z_offset" : 1693
   }
-  

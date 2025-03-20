@@ -1,51 +1,37 @@
-"""
-This script renders a 3D plant model, including roots and leaves, using VTK based on CSV files.
-
-CSV Files Required:
-1. **Root Positions CSV**: Contains the positions of the center of each root at different slices. One root is a row.
-2. **Leaf Positions CSV**: Contains the positions of leaves at different slices. One leaf is a row.
-3. **Root Radius CSV**: Contains the radius values for roots at different slices, with each row representing a root. One root is a row.
-4. **Leaf Change Information CSV**: Contains information about when leaf characteristics change across slices. One leaf is a row.
-
-Additional Notes:
-- The **position CSV** should correspond to the same TIF file for accurate results.
-- The **radius CSV** values should ideally be in the same range as the Z-values of the root curves, although perfect alignment is not mandatory but recommended for better fidelity.
-
-This code creates a 3D visualization of the plant by reading and processing these CSV files using VTK to render the geometry. 
-The leaves from the same tiller will share a color palette, becoming darker the higher they start.
-The roots will have a blue color if they start high, and the red one if they start low.
-"""
 import os
 from types import SimpleNamespace
 import numpy as np
 import json
 import vtk
 from vtkmodules.vtkRenderingCore import vtkRenderWindowInteractor
-from data_utils import get_curve,get_radius,read_csv_files,read_information_file,process_curves
-from utils import create_color_palettes,get_color_from_z_roots,get_color_from_z_leaves,count_vertices_and_triangles,compute_z_min_max
-from render_utils import SurfaceRenderer,SliceInteractionHandler,VolumeRenderer,setup_vtk_renderer,create_sphere_actor,create_tube_actor
+from data_utils import get_radius, read_csv_files, read_information_file, process_curves
+from utils import create_color_palettes, get_color_from_z_roots, get_color_from_z_leaves, count_vertices_and_triangles, compute_z_min_max
+from render_utils import SurfaceRenderer, SliceInteractionHandler, VolumeRenderer, setup_vtk_renderer, create_sphere_actor, create_tube_actor
 
 
 def load_config(config_path="config.json"):
-    """Charge la configuration depuis un fichier JSON."""
+    """Loads the configuration from a JSON file."""
     with open(config_path, "r") as f:
         return json.load(f)
 
 
-def setup_interaction(renderer, surface_renderer,volume_renderer):
-    # Créer un gestionnaire d'événements pour les touches fléchées
-    interaction_handler = SliceInteractionHandler(renderer, surface_renderer,volume_renderer)
+def setup_interaction(renderer, surface_renderer, volume_renderer):
+    # Create an event handler for the arrow keys
+    interaction_handler = SliceInteractionHandler(renderer, surface_renderer, volume_renderer)
     
-    # Créer un interactor et attacher le gestionnaire d'événements
+    # Create an interactor and attach the event handler
     renderWindowInteractor = vtkRenderWindowInteractor()
     renderWindowInteractor.SetRenderWindow(renderer.GetRenderWindow())
+    interaction_handler.create_sliders()
+    interaction_handler.create_text()
+    interaction_handler.create_button()
     renderWindowInteractor.AddObserver('KeyPressEvent', interaction_handler.on_key_press)
 
     return renderWindowInteractor
 
 
 def process_leaves(renderer, all_leaves_csv_files, curve_points_dict_leaves, information, config, z_min_leaves, z_max_leaves, palettes):
-    """Génère la visualisation des feuilles en 3D."""
+    """Generates the 3D visualization of the leaves."""
     all_points = []
     
     for i, (filename, dir_index) in enumerate(all_leaves_csv_files):
@@ -58,21 +44,21 @@ def process_leaves(renderer, all_leaves_csv_files, curve_points_dict_leaves, inf
 
         curve_color = get_color_from_z_leaves(curve_points[0][2], z_min_leaves, z_max_leaves, dir_index, palettes)
         
-        # Ajout de la sphère pour le premier point
+        # Add a sphere for the first point
         sphereActor = create_sphere_actor(x_s, y_s, z_s, config.base_radius * config.pixel_size, curve_color)
         renderer.AddActor(sphereActor)
 
-        # Ajout des tubes reliant les points
+        # Add tubes connecting the points
         for j, point in enumerate(curve_points[1:], start=1):
             x, y, z = [coord * config.pixel_size for coord in point]
             
-            # Choix du rayon en fonction de la hauteur z
+            # Choose the radius based on the z height
             if z < levels[0]:
                 radius = config.leaf_small_radius * config.pixel_size
             else:
                 radius = config.leaf_mid_radius * config.pixel_size if z < levels[1] else config.leaf_big_radius * config.pixel_size
 
-            # Ajout du tube
+            # Add the tube
             tubeActor = create_tube_actor(x_s, y_s, z_s, x, y, z, radius, curve_color)
             renderer.AddActor(tubeActor)
 
@@ -83,22 +69,22 @@ def process_leaves(renderer, all_leaves_csv_files, curve_points_dict_leaves, inf
 
 def process_roots(curve_points_dict_roots, all_roots_csv_files, radius_points, config, z_min_roots, z_max_roots, renderer):
     """
-    Traitement des racines en créant des sphères pour les points de départ et des tubes pour les courbes,
-    puis en les ajoutant au renderer.
+    Process the roots by creating spheres for the starting points and tubes for the curves,
+    then adding them to the renderer.
 
-    :param curve_points_dict_roots: Dictionnaire contenant les courbes des racines.
-    :param all_roots_csv_files: Liste des fichiers CSV des racines.
-    :param radius_points: Liste des points de rayon associés à chaque courbe de racines.
-    :param config: Configuration contenant les paramètres pour le rendu.
-    :param z_min_roots: Valeur minimale de Z pour le mappage de couleurs.
-    :param z_max_roots: Valeur maximale de Z pour le mappage de couleurs.
-    :param renderer: L'instance du renderer pour ajouter les acteurs.
-    :return: Liste des points traités pour les racines.
+    :param curve_points_dict_roots: Dictionary containing the root curves.
+    :param all_roots_csv_files: List of root CSV files.
+    :param radius_points: List of radius points associated with each root curve.
+    :param config: Configuration containing rendering parameters.
+    :param z_min_roots: Minimum Z value for color mapping.
+    :param z_max_roots: Maximum Z value for color mapping.
+    :param renderer: The renderer instance for adding actors.
+    :return: List of processed points for the roots.
     """
 
     all_points = []
 
-    # Traitement des racines
+    # Process the roots
     for i, filename in enumerate(all_roots_csv_files):
         curve_points = curve_points_dict_roots[filename]
         radius_list = radius_points[i]
@@ -108,14 +94,14 @@ def process_roots(curve_points_dict_roots, all_roots_csv_files, radius_points, c
         for j, point in enumerate(curve_points):
             x, y, z = [coord * config.pixel_size for coord in point]
             if j == 0:
-                # Création des sphères pour le premier point de la racine
+                # Create spheres for the first root point
                 sphereSource = vtk.vtkSphereSource()
                 sphereSource.SetCenter(x, y, z)
                 radius = radius_list[j][1] * config.pixel_size
                 sphereSource.SetRadius((radius + 5) / 2)
                 sphereSource.Update()
 
-                # Setup du mapper et acteur pour la sphère
+                # Setup the mapper and actor for the sphere
                 sphereMapper = vtk.vtkPolyDataMapper()
                 sphereMapper.SetInputConnection(sphereSource.GetOutputPort())
                 sphereActor = vtk.vtkActor()
@@ -124,23 +110,23 @@ def process_roots(curve_points_dict_roots, all_roots_csv_files, radius_points, c
                 sphereActor.GetProperty().SetColor(curve_color)
                 sphereActor.GetProperty().SetInterpolationToFlat()
 
-                # Ajouter l'acteur sphère au renderer
+                # Add the sphere actor to the renderer
                 renderer.AddActor(sphereActor)
             else:
-                # Création des tubes pour les points suivants
+                # Create tubes for the following points
                 radius = radius_list[j][1] * config.pixel_size
                 lineSource = vtk.vtkLineSource()
                 lineSource.SetPoint1(x_s, y_s, z_s)
                 lineSource.SetPoint2(x, y, z)
 
-                # Tube filter pour la courbe
+                # Tube filter for the curve
                 tubeFilter = vtk.vtkTubeFilter()
                 tubeFilter.SetInputConnection(lineSource.GetOutputPort())
                 tubeFilter.SetRadius((radius - 5) / 2)
                 tubeFilter.SetNumberOfSides(12)
                 tubeFilter.Update()
 
-                # Setup du mapper et acteur pour le tube
+                # Setup the mapper and actor for the tube
                 tubeMapper = vtk.vtkPolyDataMapper()
                 tubeMapper.SetInputConnection(tubeFilter.GetOutputPort())
                 tubeActor = vtk.vtkActor()
@@ -149,13 +135,13 @@ def process_roots(curve_points_dict_roots, all_roots_csv_files, radius_points, c
                 tubeActor.GetProperty().SetColor(curve_color)
                 tubeActor.GetProperty().SetInterpolationToFlat()
 
-                # Ajouter l'acteur tube au renderer
+                # Add the tube actor to the renderer
                 renderer.AddActor(tubeActor)
 
-                # Mettre à jour les points de départ pour la prochaine itération
+                # Update the starting points for the next iteration
                 x_s, y_s, z_s = x, y, z
 
-            # Ajouter le point courant aux points traités
+            # Add the current point to the processed points
             all_points.append([x, y, z])
 
     return all_points
@@ -168,37 +154,37 @@ def main(config):
     using Marching Cubes.
     """
 
-    # Initialisation du renderer VTK existant
+    # Initialize the existing VTK renderer
     renderer, renderWindow = setup_vtk_renderer()
 
-    # Lecture des fichiers CSV
+    # Read the CSV files
     all_leaves_csv_files = read_csv_files(config.csv_directories_leaves, config.path_to_test_data, track_index=True)
     all_roots_csv_files = read_csv_files(config.csv_directories_roots, config.path_to_test_data, track_index=False)
 
-    # Lecture du fichier d'information
+    # Read the information file
     information = read_information_file(config.path_to_test_data + os.sep + config.information_path)
 
-    # Extraction des courbes
+    # Extract the curves
     all_z_leaves, curve_points_dict_leaves = process_curves(all_leaves_csv_files, config.csv_directories_leaves, config.path_to_test_data, config.curve_sample_leaf, track_index=True)
     all_z_roots, curve_points_dict_roots = process_curves(all_roots_csv_files, config.csv_directories_roots, config.path_to_test_data, config.curve_sample_root, track_index=False)
 
-    # Calcul des min/max de Z pour le mapping de couleurs
+    # Compute the min/max Z values for color mapping
     z_min_roots, z_max_roots = compute_z_min_max(all_z_roots)
     z_min_leaves, z_max_leaves = compute_z_min_max(all_z_leaves)
 
-    # Création des palettes de couleurs
+    # Create the color palettes
     palettes = create_color_palettes(len(config.csv_directories_leaves))
 
-    # Génération de la visualisation des feuilles
+    # Generate the leaf visualization
     all_points = process_leaves(renderer, all_leaves_csv_files, curve_points_dict_leaves, information, config, z_min_leaves, z_max_leaves, palettes)
 
-    # Processus des racines
+    # Process the roots
     curve_lengths = [len(curve_points) for curve_points in curve_points_dict_roots.values()]
     radius_points = get_radius(config.path_to_test_data + os.sep + config.radius_path, curve_lengths)
     
     all_points.extend(process_roots(curve_points_dict_roots, all_roots_csv_files, radius_points, config, z_min_roots, z_max_roots, renderer))
 
-    # Création de la grille 3D et remplissage avec la densité des points
+    # Create the 3D grid and fill it with point density
     spacing = 2.0
     grid = vtk.vtkImageData()
     grid.SetDimensions(500, 500, 500)
@@ -220,24 +206,24 @@ def main(config):
     for x, y, z in zip(x_idx, y_idx, z_idx):
         grid.SetScalarComponentFromDouble(x, y, z, 0, 1.0)
 
-    # Marching Cubes pour l'extraction de la surface iso
+    # Marching Cubes for iso-surface extraction
     marchingCubes = vtk.vtkMarchingCubes()
     marchingCubes.SetInputData(grid)
     marchingCubes.ComputeNormalsOn()
     marchingCubes.SetValue(0, 0.9)
     marchingCubes.Update()
 
-    # Création du mapper et de l'acteur pour la surface iso
+    # Create the mapper and actor for the iso-surface
     isoMapper = vtk.vtkPolyDataMapper()
     isoMapper.SetInputConnection(marchingCubes.GetOutputPort())
     isoActor = vtk.vtkActor()
     isoActor.SetMapper(isoMapper)
     isoActor.GetProperty().SetInterpolationToPhong()
 
-    # Ajouter l'acteur iso-surface au renderer
+    # Add the iso-surface actor to the renderer
     renderer.AddActor(isoActor)
 
-    # Rendu de la surface et du volume
+    # Rendering the surface and volume
     surface_renderer = SurfaceRenderer(config.path_to_test_data + os.sep + config.tiff_file, config.x_offset, config.y_offset, config.z_offset, config.pixel_size, 3, 0.95, renderer, surface_file=config.path_to_test_data + os.sep + config.surface_file)
     renderer.AddActor(surface_renderer.surface_actor)
 
@@ -247,7 +233,7 @@ def main(config):
         y_offset=config.y_offset,
         z_offset=config.z_offset,
         pixel_size=config.pixel_size,
-        opacity_factor=5  # Ajuster selon ton besoin
+        opacity_factor=5  # Adjust as needed
     )
     renderer.AddVolume(volume_renderer.get_volume())
 
@@ -257,22 +243,22 @@ def main(config):
 
     renderer.ResetCamera()
 
-    # Ajuster la caméra
+    # Adjust the camera
     camera = renderer.GetActiveCamera()
     camera.Zoom(1)
     center = np.mean(all_points_np, axis=0)
-    camera.SetPosition(center[0], center[1] - 50000, center[2]-35000)
+    camera.SetPosition(center[0], center[1] - 50000, center[2] - 35000)
     camera.SetFocalPoint(center[0], center[1], center[2])
     camera.SetViewUp(0, 0, 1)
     camera.SetClippingRange(1000, 80000)
 
-    # Définir la taille et afficher la scène
+    # Set the window size and display the scene
     renderWindow.SetSize(800, 800)
 
-    # Lancer l'interaction avec le renderer déjà créé
+    # Start interaction with the already created renderer
     renderWindow.Render()
 
-    # Ajout de l'interaction pour le contrôle de la scène
+    # Add interaction for scene control
     renderWindowInteractor = setup_interaction(renderer, surface_renderer, volume_renderer)
     renderWindowInteractor.Start()
 
@@ -280,33 +266,16 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Render a 3D plant model from CSV files.")
-    parser.add_argument("config", type=str, nargs="?",default=None,help="Path to the JSON configuration file.")
+    parser.add_argument("config", type=str, nargs="?", default=None, help="Path to the JSON configuration file.")
     args = parser.parse_args()
 
-    # Charger la configuration depuis le JSON
+    # Load the configuration from the JSON
     if(args.config is None):
-        #Load from default file (i.e. config.json)
+        # Load from default file (i.e. config.json)
         config_obj = load_config()
-    else :
+    else:
         config_obj = load_config(args.config)
     config = SimpleNamespace(**config_obj)
 
-    # Appeler la fonction main avec les paramètres du JSON
+    # Call the main function with the parameters from the JSON
     main(config)
-        
-    if(False):
-        base_radius=config["base_radius"],
-        leaf_small_radius=config["leaf_small_radius"],
-        leaf_mid_radius=config["leaf_mid_radius"],
-        leaf_big_radius=config["leaf_big_radius"],
-        curve_sample_root=config["curve_sample_root"],
-        curve_sample_leaf=config["curve_sample_leaf"],
-        pixel_size=config["pixel_size"],
-        csv_directories_leaves=config["csv_directories_leaves"],
-        csv_directories_roots=config["csv_directories_roots"],
-        information_path=config["information_path"],
-        radius_path=config["radius_path"],
-        surface_file=config["surface_file"],
-        tiff_file=config["tiff_file"]
-    
-
