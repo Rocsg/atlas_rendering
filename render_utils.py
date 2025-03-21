@@ -17,6 +17,8 @@ def setup_vtk_renderer():
     colors = vtk.vtkNamedColors()
     renderer = vtk.vtkRenderer()
     renderer.SetBackground(colors.GetColor3d('LightSlateGray'))
+    renderer.SetUseDepthPeeling(True)
+    #renderer.UseDepthPeelingForVolumesOn()
     renderWindow = vtk.vtkRenderWindow()
     renderWindow.SetWindowName('IsoSurface with Marching Cubes')
     renderWindow.AddRenderer(renderer)
@@ -105,7 +107,7 @@ class SliceInteractionHandler:
         """
         self.renderer = renderer
         self.surface_renderer = surface_renderer
-        self.current_xslice_index = int(self.surface_renderer.volume_data.GetDimensions()[0]/2 )# Index of the current slice
+        self.current_xslice_index = int(self.surface_renderer.volume_data.GetDimensions()[0]/2)# Index of the current slice
         self.current_yslice_index = int(self.surface_renderer.volume_data.GetDimensions()[1]/2)
         self.current_zslice_index = int(self.surface_renderer.volume_data.GetDimensions()[2]/2)
         self.current_axis = 2  # Default to Z-axis
@@ -124,7 +126,14 @@ class SliceInteractionHandler:
         self.text_visible=False
         
     def create_sliders(self):
-        # X-axis slice slider
+        """
+        Creates and configures the X, Y and Z axis slice sliders and the volume opacity slider.
+
+        The X-axis slice slider is used to change the index of the slice displayed along the X-axis.
+        The Y-axis slice slider is used to change the index of the slice displayed along the Y-axis.
+        The Z-axis slice slider is used to change the index of the slice displayed along the Z-axis.
+        The volume opacity slider is used to change the opacity of the volume rendering.
+        """
         self.x_slider_rep = vtk.vtkSliderRepresentation2D()
         self.x_slider_rep.SetMinimumValue(0)
         self.x_slider_rep.SetMaximumValue(self.surface_renderer.volume_data.GetDimensions()[0] - 1)
@@ -264,28 +273,46 @@ class SliceInteractionHandler:
 
 
     def on_x_slider_change(self, obj, event):
-        # Update the X slice index based on the slider value
+        """
+        Called when the X slice slider is changed. Updates the current X slice index
+        with the new value and triggers a render update.
+        """
         self.previous_xslice_index=self.current_xslice_index
         self.current_xslice_index = int(self.x_slider_rep.GetValue())
         self.previous_axis=self.current_axis
         self.update_renderer_with_new_slice_x()
 
     def on_y_slider_change(self, obj, event):
-        # Update the Y slice index based on the slider value
+        """
+        Called when the Y slice slider is changed. Updates the current Y slice index
+        with the new value and triggers a render update.
+        """
         self.previous_yslice_index=self.current_yslice_index
         self.current_yslice_index = int(self.y_slider_rep.GetValue())
         self.previous_axis=self.current_axis
         self.update_renderer_with_new_slice_y()
 
     def on_z_slider_change(self, obj, event):
-        # Update the Z slice index based on the slider value
+        """
+        Called when the Z slice slider is changed. Updates the current Z slice index
+        with the new value and triggers a render update.
+        """
         self.previous_zslice_index=self.current_zslice_index
         self.current_zslice_index = int(self.z_slider_rep.GetValue())
         self.previous_axis=self.current_axis
         self.update_renderer_with_new_slice_z()
 
     def on_opacity_slider_change(self, obj, event):
-        # Update the opacity factor based on the slider value
+        """
+        Called when the opacity slider is changed. Updates the opacity factor
+        for the volume renderer based on the slider's current value, updates the
+        opacity transfer function accordingly, and triggers a render update.
+        
+        Args:
+            obj: The slider object that triggered the event.
+            event: The event that triggered the function call.
+        """
+
         self.opacity_factor = self.opacity_slider_rep.GetValue()
         self.volume_renderer.opacity_factor = self.opacity_factor
         self.volume_renderer.update_opacity_transfer_function()
@@ -293,12 +320,43 @@ class SliceInteractionHandler:
 
 
     def toggle_slider(self, widget,enable):
+        """
+        Toggles the enabled state of a given VTK slider widget.
+
+        Args:
+            widget: The VTK slider widget to be toggled.
+            enable (bool): If True, enables the widget; otherwise, disables it.
+        """
         if enable:
             widget.EnabledOn()
         else:
             widget.EnabledOff()
 
     def create_text(self) :
+        """
+        Creates the text actor for the current axis label and the help text actor with
+        information about the key press events.
+
+        The text actor is created with the following properties:
+        - Font size: 24
+        - Color: (0.5, 1, 0)
+        - Bold: True
+        - Italic: True
+        - Opacity: 0.8
+        - Position: (0.05, 0.95)
+
+        The help text actor is created with the following properties:
+        - Font size: 16
+        - Color: (1, 1, 1)
+        - Bold: True
+        - Italic: True
+        - Opacity: 0.8
+        - Position: (0.05, 0.05)
+        - Visibility: False
+
+        The text actor is added to the renderer and the help text actor is added to the
+        renderer with visibility set to False.
+        """
         self.text_actor = vtk.vtkTextActor()
         self.text_actor.GetPositionCoordinate().SetCoordinateSystemToNormalizedDisplay()
         self.text_actor.SetPosition(0.05, 0.95)
@@ -344,6 +402,18 @@ class SliceInteractionHandler:
         self.text_help_actor.SetVisibility(False)
 
     def update_text_value(self):
+        """
+        Updates the text actor to display the current axis label.
+
+        This method sets the input of the text actor to indicate which axis is
+        currently selected (X, Y, or Z) and triggers a render update.
+
+        The axis is determined based on the `current_axis` attribute:
+        - 0: X-axis
+        - 1: Y-axis
+        - 2: Z-axis
+        """
+
         if(self.current_axis==0) :
             text = "X"
         elif(self.current_axis==1) :
@@ -356,6 +426,20 @@ class SliceInteractionHandler:
 
 
     def createImage(self, image, color1, color2):
+        """
+        Creates a 2D image with a white "H" shape centered horizontally
+        and vertically within a colored border.
+
+        The image is created with a specified size (12x12 pixels) and
+        a border with a specified color. The "H" shape is formed by two
+        vertical bars and a horizontal bar, with specified thicknesses.
+        The image is then populated with pixel colors to form the "H"
+        shape within the border.
+
+        :param image: The vtkImageData object to store the image data.
+        :param color1: A tuple of three floats (RGB) specifying the color of the border.
+        :param color2: A tuple of three floats (RGB) specifying the color of the "H" shape.
+        """
         size = 12  # Image size (12x12 pixels)
         padding = 2  # Margin around the "H"
         dims = [size, size, 1]  # Image dimensions (width, height, depth)
@@ -390,18 +474,51 @@ class SliceInteractionHandler:
 
 
     def createButtonOff(self,image):
+        """
+        Creates a red "off" button image.
+
+        The image is an "H" shape with a red fill and a white border. The size
+        of the image is determined by the size of the image passed as an argument.
+
+        :param image: The image object to be populated with the pixel data.
+        :type image: vtk.vtkImageData
+        """
         white = [255, 255, 255]
         red = [255,0,0]
         self.createImage(image, white, red)
 
 
     def createButtonOn(self,image):
+        """
+        Creates a green "on" button image.
+
+        The image is an "H" shape with a green fill and a white border. The size
+        of the image is determined by the size of the image passed as an argument.
+
+        :param image: The image object to be populated with the pixel data.
+        :type image: vtk.vtkImageData
+        """
         white = [255, 255, 255]
         green = [0, 255, 0 ]
         self.createImage(image, white, green)
 
     def create_button(self):
-        # Create a button representation
+        """
+        Creates a 2D textured button with two states and places it within the renderer.
+
+        This method initializes a button representation with two states, each
+        represented by a different image texture: "off" (red "H") and "on" (green "H").
+        The button is positioned in the upper-right corner of the display using
+        normalized display coordinates. It also sets the button's opacity and 
+        assigns an observer to handle state changes.
+
+        The button widget is then created, associated with the representation, and
+        attached to the render window interactor to enable interaction.
+
+        Observers:
+            - "StateChangedEvent": Triggers the `on_button_click` method to toggle the
+            visibility of the associated text.
+        """
         self.button_rep = vtk.vtkTexturedButtonRepresentation2D()
         self.button_rep.SetNumberOfStates(2)
         image1 = vtk.vtkImageData()
@@ -432,7 +549,14 @@ class SliceInteractionHandler:
         self.button_widget.EnabledOn()
 
     def on_button_click(self, obj, event):
-        # Toggle the visibility of the text
+        """
+        Handles the button click event to toggle the visibility of help text.
+
+        This method inverts the current visibility state of the help text actor
+        each time the button is clicked and triggers a render update to reflect
+        the change in the render window.
+        """
+
         self.text_visible = not self.text_visible
         self.text_help_actor.SetVisibility(self.text_visible)
         
@@ -517,7 +641,6 @@ class SliceInteractionHandler:
             self.renderer.RemoveActor(self.volume_renderer.get_volume())
 
     def modify_opacity_factor(self, factor):
-        # Adjust the opacity factor
         """
         Modify the opacity factor of the volume renderer by adding the given factor.
 

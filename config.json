@@ -7,25 +7,20 @@
     "leaf_mid_radius": 5,
     "leaf_big_radius": 10,
     "_comment4": "Resample interval for curves, different for root and leaves",
-    "curve_sample_root": 50,
-    "curve_sample_leaf": 150,
+    "curve_sample_root": 20,
+    "curve_sample_leaf": 200,
     "_comment5": "Pixel size to get back to physical metrics",
     "pixel_size": 12,
     "_comment6": "Different directories,paths and files required",
     "path_to_test_data" : "/home/caro/Documents/Ressources/Annotation_plante_01/",
     "path_to_dev_data" : "/home/rfernandez/Bureau/A_Test/atlas_dev_dataset",
     "csv_directories_leaves": [
-      "feuilles/tale_0/csv",
-      "feuilles/tale_2/csv",
-      "feuilles/tale_2-1/csv",
-      "feuilles/tale_3/csv",
       "feuilles/tale_4/csv"
+
     ],
     "csv_directories_roots": [
-      "racines/a-a-m/csv",
-      "racines/A-a-M/csv",
-      "racines/n-a-z/csv",
-      "racines/N-a-Z/csv"
+      "racines/A-a-M/csv"
+
     ],
     "information_path": "feuilles/information.csv",
     "radius_path": "racines/radius.csv",

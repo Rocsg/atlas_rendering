@@ -33,9 +33,11 @@ def setup_interaction(renderer, surface_renderer, volume_renderer):
 def process_leaves(renderer, all_leaves_csv_files, curve_points_dict_leaves, information, config, z_min_leaves, z_max_leaves, palettes):
     """Generates the 3D visualization of the leaves."""
     all_points = []
-    
+    levels_dict = {}
     for i, (filename, dir_index) in enumerate(all_leaves_csv_files):
-        levels = [level * config.pixel_size for level in information[i]]
+        levels_dict[filename] = [level * config.pixel_size for level in information[i]]
+    for i, (filename, dir_index) in enumerate(all_leaves_csv_files):
+        levels = levels_dict[filename]
         curve_data = curve_points_dict_leaves[filename]
         curve_points = curve_data[0]
 
@@ -52,13 +54,13 @@ def process_leaves(renderer, all_leaves_csv_files, curve_points_dict_leaves, inf
         for j, point in enumerate(curve_points[1:], start=1):
             x, y, z = [coord * config.pixel_size for coord in point]
             
-            # Choose the radius based on the z height
+            # Choose the radius based on the z heightœœœ
             if z < levels[0]:
                 radius = config.leaf_small_radius * config.pixel_size
             else:
                 radius = config.leaf_mid_radius * config.pixel_size if z < levels[1] else config.leaf_big_radius * config.pixel_size
 
-            # Add the tube
+            # Add the tubeœ
             tubeActor = create_tube_actor(x_s, y_s, z_s, x, y, z, radius, curve_color)
             renderer.AddActor(tubeActor)
 
@@ -90,7 +92,7 @@ def process_roots(curve_points_dict_roots, all_roots_csv_files, radius_points, c
         radius_list = radius_points[i]
         curve_color = get_color_from_z_roots(curve_points[0][2], z_min_roots, z_max_roots)
         x_s, y_s, z_s = [coord * config.pixel_size for coord in curve_points[0]]
-
+        append = vtk.vtkAppendPolyData()
         for j, point in enumerate(curve_points):
             x, y, z = [coord * config.pixel_size for coord in point]
             if j == 0:
@@ -109,6 +111,7 @@ def process_roots(curve_points_dict_roots, all_roots_csv_files, radius_points, c
                 sphereActor.GetProperty().SetOpacity(1.0)
                 sphereActor.GetProperty().SetColor(curve_color)
                 sphereActor.GetProperty().SetInterpolationToFlat()
+            
 
                 # Add the sphere actor to the renderer
                 renderer.AddActor(sphereActor)
@@ -183,45 +186,7 @@ def main(config):
     radius_points = get_radius(config.path_to_test_data + os.sep + config.radius_path, curve_lengths)
     
     all_points.extend(process_roots(curve_points_dict_roots, all_roots_csv_files, radius_points, config, z_min_roots, z_max_roots, renderer))
-
-    # Create the 3D grid and fill it with point density
-    spacing = 2.0
-    grid = vtk.vtkImageData()
-    grid.SetDimensions(500, 500, 500)
-    grid.SetSpacing(spacing, spacing, spacing)
-    grid.AllocateScalars(vtk.VTK_FLOAT, 1)
     all_points_np = np.array(all_points)
-    min_coords = all_points_np.min(axis=0)
-    max_coords = all_points_np.max(axis=0)
-    grid_size = np.array([500, 500, 500])
-    scale = (grid_size - 1) / (max_coords - min_coords)
-    print("min_coords:", min_coords)
-    print("max_coords:", max_coords)
-    print("scale:", scale)
-    normalized_points = (all_points_np - min_coords) * scale
-    normalized_points = np.clip(normalized_points, 0, grid_size - 1)
-
-    # Fill grid with point density
-    x_idx, y_idx, z_idx = np.round(normalized_points).astype(int).T
-    for x, y, z in zip(x_idx, y_idx, z_idx):
-        grid.SetScalarComponentFromDouble(x, y, z, 0, 1.0)
-
-    # Marching Cubes for iso-surface extraction
-    marchingCubes = vtk.vtkMarchingCubes()
-    marchingCubes.SetInputData(grid)
-    marchingCubes.ComputeNormalsOn()
-    marchingCubes.SetValue(0, 0.9)
-    marchingCubes.Update()
-
-    # Create the mapper and actor for the iso-surface
-    isoMapper = vtk.vtkPolyDataMapper()
-    isoMapper.SetInputConnection(marchingCubes.GetOutputPort())
-    isoActor = vtk.vtkActor()
-    isoActor.SetMapper(isoMapper)
-    isoActor.GetProperty().SetInterpolationToPhong()
-
-    # Add the iso-surface actor to the renderer
-    renderer.AddActor(isoActor)
 
     # Rendering the surface and volume
     surface_renderer = SurfaceRenderer(config.path_to_test_data + os.sep + config.tiff_file, config.x_offset, config.y_offset, config.z_offset, config.pixel_size, 3, 0.95, renderer, surface_file=config.path_to_test_data + os.sep + config.surface_file)
