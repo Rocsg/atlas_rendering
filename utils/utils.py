@@ -22,7 +22,7 @@ def create_color_palettes(n_dir):
         (1.0, 1.0, 0.0),   # Yellow
         (0.0, 1.0, 1.0),   # Turquoise
         (0.5, 0.25, 0.0),  # Caramel Brown
-        (0.0, 0.0, 0.0),   # Black Grey
+        (0.5, 0.0, 0.5),   # Purple
     ]
 
     palettes = []
@@ -201,3 +201,14 @@ def compute_z_min_max(z_values):
     - tuple: A tuple (min_z, max_z) containing the minimum and maximum z values.
     """
     return min(z_values), max(z_values)
+
+def check_memory_usage():
+    """
+    Affiche l'utilisation de la mémoire du système.
+    """
+    import psutil
+    process = psutil.Process()
+    mem_info = process.memory_info()
+    memory_usage = mem_info.rss / 1024 / 1024  # Converti la mémoire en Mo
+    print(f"Utilisation de la mémoire : {memory_usage:.2f} Mo")
+

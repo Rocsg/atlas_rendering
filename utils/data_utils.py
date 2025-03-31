@@ -192,7 +192,6 @@ def process_curves(entries, directories, base_path, sample, track_index=False):
     """
     all_z = []
     curve_points_dict = {}
-
     for entry in entries:
         if track_index:
             if isinstance(entry, list) and len(entry) == 2:
@@ -217,3 +216,9 @@ def process_curves(entries, directories, base_path, sample, track_index=False):
         all_z.append(curve_points[0][2])  # Extract the first Z coordinate
 
     return all_z, curve_points_dict
+
+def get_sorted_vtk_files(directory):
+    """ Récupère et trie les fichiers .vtk d'un dossier."""
+    files = [f for f in os.listdir(directory) if f.endswith(".vtk")]
+    files.sort()  # Trie les fichiers par ordre alphabétique
+    return [os.path.join(directory, f) for f in files]

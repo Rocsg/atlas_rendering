@@ -124,6 +124,7 @@ class SliceInteractionHandler:
         self.volume_visibility=True
         self.opacity_factor=volume_renderer.opacity_factor
         self.text_visible=False
+        self.slice_opacity=0.5
         
     def create_sliders(self):
         """
@@ -236,7 +237,7 @@ class SliceInteractionHandler:
 
         self.opacity_slider_rep = vtk.vtkSliderRepresentation2D()
         self.opacity_slider_rep.SetMinimumValue(0)
-        self.opacity_slider_rep.SetMaximumValue(30)
+        self.opacity_slider_rep.SetMaximumValue(1)
         self.opacity_slider_rep.SetValue(self.opacity_factor)
         self.opacity_slider_rep.SetTitleText("Volume Opacity")
 
@@ -264,11 +265,45 @@ class SliceInteractionHandler:
         self.opacity_slider_widget.SetRepresentation(self.opacity_slider_rep)
         self.opacity_slider_widget.SetInteractor(self.renderer.GetRenderWindow().GetInteractor())
         self.opacity_slider_widget.AddObserver("InteractionEvent", self.on_opacity_slider_change)
+        
+
+        self.opacity_slider_slice_rep = vtk.vtkSliderRepresentation2D()
+        self.opacity_slider_slice_rep.SetMinimumValue(0)
+        self.opacity_slider_slice_rep.SetMaximumValue(1)
+        self.opacity_slider_slice_rep.SetValue(self.slice_opacity)
+        self.opacity_slider_slice_rep.SetTitleText("Slice Opacity")
+
+        self.opacity_slider_slice_rep.GetPoint1Coordinate().SetCoordinateSystemToNormalizedDisplay()
+        self.opacity_slider_slice_rep.GetPoint1Coordinate().SetValue(0.83, 0.42)  # 2D position, Z = 0 by default
+        self.opacity_slider_slice_rep.GetPoint2Coordinate().SetCoordinateSystemToNormalizedDisplay()
+        self.opacity_slider_slice_rep.GetPoint2Coordinate().SetValue(0.98, 0.42)  # 2D position, Z = 0 by default
+        self.opacity_slider_slice_rep.SetSliderWidth(0.02)
+        self.opacity_slider_slice_rep.SetTubeWidth(0.005)   
+        self.opacity_slider_slice_rep.GetTubeProperty().SetColor(1,1,1)
+        self.opacity_slider_slice_rep.GetCapProperty().SetColor(1,0,0)
+        self.opacity_slider_slice_rep.GetSliderProperty().SetColor(1,0,0)
+        self.opacity_slider_slice_rep.SetEndCapLength(0.01) 
+        self.opacity_slider_slice_rep.SetEndCapWidth(0.01)
+        self.opacity_slider_slice_rep.GetTitleProperty().SetItalic(1)  
+        self.opacity_slider_slice_rep.GetTitleProperty().SetColor(1, 1, 1)  
+        self.opacity_slider_slice_rep.GetLabelProperty().SetColor(1, 1, 0)  
+        self.opacity_slider_slice_rep.GetTubeProperty().SetOpacity(0.7)   
+        self.opacity_slider_slice_rep.GetCapProperty().SetOpacity(0.7)     
+        self.opacity_slider_slice_rep.GetSliderProperty().SetOpacity(0.7)  
+        self.opacity_slider_slice_rep.GetTitleProperty().SetOpacity(0.7)  
+        self.opacity_slider_slice_rep.GetLabelProperty().SetOpacity(0.7)
+
+        self.opacity_slider_slice_widget = vtk.vtkSliderWidget()
+        self.opacity_slider_slice_widget.SetRepresentation(self.opacity_slider_slice_rep)
+        self.opacity_slider_slice_widget.SetInteractor(self.renderer.GetRenderWindow().GetInteractor())
+        self.opacity_slider_slice_widget.AddObserver("InteractionEvent", self.on_opacity_slice_slider_change)
+
         # Enable the sliders
         self.x_slider_widget.EnabledOn()
         self.y_slider_widget.EnabledOn()
         self.z_slider_widget.EnabledOn()
         self.opacity_slider_widget.EnabledOn()
+        self.opacity_slider_slice_widget.EnabledOn()
         
 
 
@@ -317,6 +352,21 @@ class SliceInteractionHandler:
         self.volume_renderer.opacity_factor = self.opacity_factor
         self.volume_renderer.update_opacity_transfer_function()
         self.renderer.GetRenderWindow().GetInteractor().Render()
+
+    def on_opacity_slice_slider_change(self, obj, event):
+        """
+        Called when the opacity slider is changed. Updates the opacity factor
+        for the volume renderer based on the slider's current value, updates the
+        opacity transfer function accordingly, and triggers a render update.
+        
+        Args:
+            obj: The slider object that triggered the event.
+            event: The event that triggered the function call.
+        """
+        self.slice_opacity = self.opacity_slider_slice_rep.GetValue()
+        self.update_current_slice_with_opacity()
+        self.renderer.GetRenderWindow().GetInteractor().Render()
+    
 
 
     def toggle_slider(self, widget,enable):
@@ -595,9 +645,9 @@ class SliceInteractionHandler:
         elif key =='p' or key=='P':
             self.toggle_volume()
         elif (key =='b' or key=='B') and self.volume_visibility:
-            self.modify_opacity_factor(-0.5)
+            self.modify_opacity_factor_volume(-0.5)
         elif (key =='n' or key=='N') and self.volume_visibility:
-            self.modify_opacity_factor(0.5)
+            self.modify_opacity_factor_volume(0.5)
         elif key == 'Left':
         # Decrease slice index
             self.update_slice(-self.offset)
@@ -640,7 +690,7 @@ class SliceInteractionHandler:
         else:
             self.renderer.RemoveActor(self.volume_renderer.get_volume())
 
-    def modify_opacity_factor(self, factor):
+    def modify_opacity_factor_volume(self, factor):
         """
         Modify the opacity factor of the volume renderer by adding the given factor.
 
@@ -668,6 +718,7 @@ class SliceInteractionHandler:
         # Add the updated volume back to the renderer
         self.renderer.AddActor(self.volume_renderer.get_volume())
         self.renderer.GetRenderWindow().Render()
+
 
 
 
@@ -723,15 +774,32 @@ class SliceInteractionHandler:
         self.remove_current_slice_actor()
         # Add the new slice actor for the current axis
         if(self.current_axis==0 and self.slices_visible_x):
+            self.surface_renderer.slice_actors[self.current_axis][self.current_xslice_index].GetProperty().SetOpacity(self.slice_opacity)
             self.renderer.AddActor(self.surface_renderer.slice_actors[self.current_axis][self.current_xslice_index])
         elif(self.current_axis==1 and self.slices_visible_y):
+            self.surface_renderer.slice_actors[self.current_axis][self.current_yslice_index].GetProperty().SetOpacity(self.slice_opacity)
             self.renderer.AddActor(self.surface_renderer.slice_actors[self.current_axis][self.current_yslice_index])
         elif(self.current_axis==2 and self.slices_visible_z):
+            self.surface_renderer.slice_actors[self.current_axis][self.current_zslice_index].GetProperty().SetOpacity(self.slice_opacity)
             self.renderer.AddActor(self.surface_renderer.slice_actors[self.current_axis][self.current_zslice_index])
 
         # Update the render window
         self.renderer.GetRenderWindow().Render()
 
+    def update_current_slice_with_opacity(self) :
+        if(self.slices_visible_x) :
+            self.renderer.RemoveActor(self.surface_renderer.slice_actors[0][self.current_xslice_index])
+            self.surface_renderer.slice_actors[0][self.current_xslice_index].GetProperty().SetOpacity(self.slice_opacity)
+            self.renderer.AddActor(self.surface_renderer.slice_actors[0][self.current_xslice_index])
+        if(self.slices_visible_y) :
+            self.renderer.RemoveActor(self.surface_renderer.slice_actors[0][self.current_yslice_index])
+            self.surface_renderer.slice_actors[1][self.current_yslice_index].GetProperty().SetOpacity(self.slice_opacity)
+            self.renderer.AddActor(self.surface_renderer.slice_actors[1][self.current_yslice_index])
+        if(self.slices_visible_z) :
+            self.renderer.RemoveActor(self.surface_renderer.slice_actors[0][self.current_zslice_index])
+            self.surface_renderer.slice_actors[2][self.current_zslice_index].GetProperty().SetOpacity(self.slice_opacity)
+            self.renderer.AddActor(self.surface_renderer.slice_actors[2][self.current_zslice_index])
+        self.renderer.GetRenderWindow().Render()
 
     def update_renderer_with_new_slice_x(self):
         """
@@ -739,6 +807,7 @@ class SliceInteractionHandler:
         """
         # Remove the current slice actor from the renderer
         self.renderer.RemoveActor(self.surface_renderer.slice_actors[0][self.previous_xslice_index])
+        self.surface_renderer.slice_actors[0][self.current_xslice_index].GetProperty().SetOpacity(self.slice_opacity)
         self.renderer.AddActor(self.surface_renderer.slice_actors[0][self.current_xslice_index])
         # Update the render window
         self.renderer.GetRenderWindow().Render()
@@ -749,6 +818,7 @@ class SliceInteractionHandler:
         """
         # Remove the current slice actor from the renderer
         self.renderer.RemoveActor(self.surface_renderer.slice_actors[1][self.previous_yslice_index])
+        self.surface_renderer.slice_actors[1][self.current_yslice_index].GetProperty().SetOpacity(self.slice_opacity)
         self.renderer.AddActor(self.surface_renderer.slice_actors[1][self.current_yslice_index])
         # Update the render window
         self.renderer.GetRenderWindow().Render()
@@ -759,6 +829,7 @@ class SliceInteractionHandler:
         """
         # Remove the current slice actor from the renderer
         self.renderer.RemoveActor(self.surface_renderer.slice_actors[2][self.previous_zslice_index])
+        self.surface_renderer.slice_actors[2][self.current_zslice_index].GetProperty().SetOpacity(self.slice_opacity)
         self.renderer.AddActor(self.surface_renderer.slice_actors[2][self.current_zslice_index])
         # Update the render window
         self.renderer.GetRenderWindow().Render()
@@ -809,7 +880,7 @@ class SliceInteractionHandler:
 
 
 class SurfaceRenderer:
-    def __init__(self, tiff_file, x_offset, y_offset, z_offset, pixel_size, offset, decimation_ratio, renderer, surface_file=None):
+    def __init__(self, tiff_file, x_offset, y_offset, z_offset, pixel_size, offset, decimation_ratio, renderer, tiff_binary_file,surface_file=None):
         """
         Initializes the SurfaceRenderer with the provided TIFF file and spatial information.
         Optionally loads a pre-saved surface from a file.
@@ -832,10 +903,11 @@ class SurfaceRenderer:
         self.offset = offset
         self.renderer = renderer
         self.tiff_file = tiff_file
+        self.tiff_finary_file=tiff_binary_file
 
         # Load the volumetric data from the TIFF file
         self.volume_data = self.load_tiff(tiff_file)  # Load TIFF data
-
+        self.binary_mask=self.load_tiff(tiff_binary_file)
         # Load a pre-saved surface if available, otherwise, extract a new surface
         if surface_file and os.path.exists(surface_file):
             print(f"Loading pre-saved surface from {surface_file}")
@@ -926,7 +998,7 @@ class SurfaceRenderer:
         # Convert the numpy array to vtkImageData
         image_data = vtk.vtkImageData()
         image_data.SetDimensions(x_size, y_size, z_size)
-        image_data.SetSpacing(self.pixel_size, self.pixel_size, self.pixel_size)
+        image_data.SetSpacing(1, 1, 1)
         image_data.SetOrigin(self.x_offset * self.pixel_size,
                              self.y_offset * self.pixel_size,
                              self.z_offset * self.pixel_size)
@@ -944,7 +1016,7 @@ class SurfaceRenderer:
             vtkPolyData: The extracted surface from the volume data.
         """
         marching_cubes = vtk.vtkMarchingCubes()
-        marching_cubes.SetInputData(self.volume_data)  # Volumetric data
+        marching_cubes.SetInputData(self.binary_mask)  # Volumetric data
         marching_cubes.ComputeNormalsOn()
         marching_cubes.SetValue(0, 100)  # Isosurface value to extract the surface
         marching_cubes.Update()
@@ -1046,6 +1118,7 @@ class SurfaceRenderer:
 
 class VolumeRenderer:
     def __init__(self, tiff_file, x_offset, y_offset, z_offset, pixel_size, opacity_factor):
+
         """
         Initialises the VolumeRenderer with the given TIFF file and spatial information.
         
@@ -1083,7 +1156,7 @@ class VolumeRenderer:
         self.volume_property = vtk.vtkVolumeProperty()
         self.volume_property.SetColor(self.color_transfer_function)
         self.volume_property.SetScalarOpacity(self.opacity_transfer_function)
-        self.volume_property.ShadeOn()  # Activer les ombres pour un rendu réaliste
+        self.volume_property.ShadeOn()  
         self.volume_property.SetInterpolationTypeToLinear()
 
         self.volume = vtk.vtkVolume()
@@ -1103,16 +1176,16 @@ class VolumeRenderer:
             vtk.vtkColorTransferFunction: A color transfer function with predefined RGB values.
         """
         color_transfer_function = vtk.vtkColorTransferFunction()
-        color_transfer_function.AddRGBPoint(30, 0.0, 0.0, 0.0)  # Black
-        color_transfer_function.AddRGBPoint(55, 0.1, 0.0, 0.5)  # Dark bluish violet
-        color_transfer_function.AddRGBPoint(60, 0.4, 0.0, 0.4)  # Dark violet
-        color_transfer_function.AddRGBPoint(65, 0.6, 0.0, 0.6)  # Violet pink
-        color_transfer_function.AddRGBPoint(70, 0.8, 0.3, 0.4)  # Light pink to red
-        color_transfer_function.AddRGBPoint(75, 0.9, 0.5, 0.1)  # Red to orange
-        color_transfer_function.AddRGBPoint(80, 1.0, 0.5, 0.0)  # Orange
-        color_transfer_function.AddRGBPoint(90, 1.0, 0.7, 0.0)  # Orange to yellow
-        color_transfer_function.AddRGBPoint(100, 1.0, 0.9, 0.2) # Yellow
-        color_transfer_function.AddRGBPoint(130, 1.0, 1.0, 1.0) # White
+        color_transfer_function.AddRGBPoint(10, 0.0, 0.0, 0.0)  # Black
+        color_transfer_function.AddRGBPoint(30, 0.1, 0.0, 0.5)  # Dark bluish violet
+        color_transfer_function.AddRGBPoint(35, 0.4, 0.0, 0.4)  # Dark violet
+        color_transfer_function.AddRGBPoint(40, 0.6, 0.0, 0.6)  # Violet pink
+        color_transfer_function.AddRGBPoint(45, 0.8, 0.3, 0.4)  # Light pink to red
+        color_transfer_function.AddRGBPoint(50, 0.9, 0.5, 0.1)  # Red to orange
+        color_transfer_function.AddRGBPoint(55, 1.0, 0.5, 0.0)  # Orange
+        color_transfer_function.AddRGBPoint(60, 1.0, 0.7, 0.0)  # Orange to yellow
+        color_transfer_function.AddRGBPoint(70, 1.0, 0.9, 0.2) # Yellow
+        color_transfer_function.AddRGBPoint(80, 1.0, 1.0, 1.0) # White
 
         return color_transfer_function
 
@@ -1129,14 +1202,15 @@ class VolumeRenderer:
         Returns:
             vtk.vtkPiecewiseFunction: An opacity transfer function with predefined opacity values.
         """
+        print(self.opacity_factor)
         opacity_transfer_function = vtk.vtkPiecewiseFunction()
         opacity_transfer_function.AddPoint(0, 0.0)  # Fully transparent
         opacity_transfer_function.AddPoint(10, 0.0)  # Fully transparent
-        opacity_transfer_function.AddPoint(30, 0.0)  # Semi-transparent
-        opacity_transfer_function.AddPoint(50, 0 + self.opacity_factor*0.005)
-        opacity_transfer_function.AddPoint(60, 0.0+ self.opacity_factor*0.01)
-        opacity_transfer_function.AddPoint(100, 0.0 + self.opacity_factor*0.015)
-        opacity_transfer_function.AddPoint(130, 0.0 + self.opacity_factor*0.02)  # Almost opaque
+        opacity_transfer_function.AddPoint(30, 0.0)  # Fully transparent
+        opacity_transfer_function.AddPoint(40, 0 + self.opacity_factor*0.15)
+        opacity_transfer_function.AddPoint(50, 0.0+ self.opacity_factor*0.3)
+        opacity_transfer_function.AddPoint(60, 0.0 + self.opacity_factor*0.8)
+        opacity_transfer_function.AddPoint(80, 0.0 + self.opacity_factor*1.0)  
 
         return opacity_transfer_function
 
