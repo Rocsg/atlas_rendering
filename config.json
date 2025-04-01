@@ -1,14 +1,5 @@
 {
 "_comment": "Configuration file for the plant rendering program.",
-    "_comment2": "  Radius for the sphere at the base of leaves.",
-    "base_radius": 50,
-    "_comment3": "Radius for the different parts of leaves",
-    "leaf_small_radius": 15,
-    "leaf_mid_radius": 20,
-    "leaf_big_radius": 25,
-    "_comment4": "Resample interval for curves, different for root and leaves",
-    "curve_sample_root": 1,
-    "curve_sample_leaf": 1,
     "_comment5": "Pixel size to get back to physical metrics, in microns",
     "pixel_size": 12,
     "_comment6": "Different directories,paths and files required",
@@ -41,9 +32,5 @@
     "y_offset" : 94,
     "z_offset" : 1693,
     "inner_opacity" : 1,
-    "outer_opacity" : 0.1,
-    "grid_resample_rate" : 0.4,
-    "inner_sigma" : 1.5,
-    "outer_sigma" : 1
-    
+    "outer_opacity" : 0.1
   }
